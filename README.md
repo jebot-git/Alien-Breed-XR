@@ -57,7 +57,7 @@ Notes:
 
 - Runtime loads data from executable-local `data/` and exits if required assets are missing.
 - Runtime still supports raw Amiga sound files; `.wav` generation is build convenience.
-- If source assets are not present in your checkout, provide your own legally obtained data.
+- The game data was released alongside the original source code. This port uses those assets from `amiga/` and bundles them with the desktop and web builds.
 
 ---
 

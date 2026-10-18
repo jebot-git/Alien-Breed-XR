@@ -101,9 +101,69 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  build-linux:
+    name: Build Linux x64 package
+    if: github.repository == 'retro-foundry/Alien-Breed-HD'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Set and validate release version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z][0-9A-Za-z.-]*)?$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          echo "AB3D_RELEASE_VERSION=$RELEASE_TAG" >> "$GITHUB_ENV"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build pkg-config ffmpeg \
+            libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
+            libxcursor-dev libxi-dev libxss-dev libgl1-mesa-dev libudev-dev
+
+      - name: Configure
+        run: cmake --preset linux-release
+
+      - name: Build
+        run: cmake --build --preset linux-release --parallel
+
+      - name: Package Linux release
+        run: python tools/package_release.py --platform linux-x64 --build-dir build/linux-release --version "$AB3D_RELEASE_VERSION" --output-dir dist
+
+      - name: Attest Linux package provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*.tar.gz"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: dist/*
+          if-no-files-found: error
+
   publish:
     name: Publish GitHub release
-    needs: build-windows
+    needs: [build-windows, build-linux]
     if: github.repository == 'retro-foundry/Alien-Breed-HD'
     runs-on: ubuntu-latest
     permissions:
@@ -150,7 +210,7 @@ jobs:
           merge-multiple: true
 
       - name: Generate SHA256 checksums
-        run: python3 tools/sha256sums.py release-assets/*.zip --output release-assets/SHA256SUMS.txt
+        run: python3 tools/sha256sums.py release-assets/*.zip release-assets/*.tar.gz --output release-assets/SHA256SUMS.txt
 
       - name: Attest checksum provenance
         uses: actions/attest-build-provenance@v2
@@ -167,5 +227,6 @@ jobs:
           body_path: VERIFY_RELEASE.md
           files: |
             release-assets/*.zip
+            release-assets/*.tar.gz
             release-assets/SHA256SUMS.txt
           fail_on_unmatched_files: true

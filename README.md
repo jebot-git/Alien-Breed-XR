@@ -90,13 +90,35 @@ Floor column-fast rendering is enabled by default.
 
 ### Releases
 
-GitHub Actions publishes Windows x64 releases from tags such as `v1.0.0`. Tags with a prerelease suffix, such as `v1.0.0-beta.1` or `v1.0.0-rc.1`, are published as GitHub prereleases. Release downloads include the packaged runtime zip, SHA256 checksums, and GitHub artifact attestations where supported. See `RELEASING.md` and `VERIFY_RELEASE.md`.
+GitHub Actions builds Windows x64 and Linux x64 releases from tags such as `v1.0.0`. Tags with a prerelease suffix, such as `v1.0.0-beta.1` or `v1.0.0-rc.1`, are published as GitHub prereleases. Release downloads include a Windows zip, a Linux `.tar.gz`, SHA256 checksums, and GitHub artifact attestations where supported. See `RELEASING.md` and `VERIFY_RELEASE.md`.
 
 Optional troubleshooting build (disable floor column-fast):
 
 ```bash
 cmake -S . -B build -DAB3D_ENABLE_FLOOR_COL_FAST=OFF
 cmake --build build --config Release
+```
+
+### Linux (x64)
+
+On Ubuntu 22.04, install the compiler, asset conversion tools, and SDL2 backend dependencies:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential cmake ninja-build git python3 pkg-config ffmpeg \
+  libasound2-dev libpulse-dev libx11-dev libxext-dev libxrandr-dev \
+  libxcursor-dev libxi-dev libxss-dev libgl1-mesa-dev libudev-dev
+cmake --preset linux-release
+cmake --build --preset linux-release --parallel
+./build/linux-release/ab3d1
+```
+
+The preset requires CMake 3.21+ and puts the executable, settings, fonts, and game data under `build/linux-release/`. SDL2 is built from the pinned source revision. Linux release archives are built on Ubuntu 22.04 (glibc 2.35) and use system audio/display libraries. Extract the entire archive into a writable directory and run `./ab3d1` inside the extracted folder.
+
+To package a local Linux build:
+
+```bash
+python3 tools/package_release.py --platform linux-x64 --build-dir build/linux-release --version v1.0.0 --output-dir dist
 ```
 
 ### Web (Emscripten)

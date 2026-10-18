@@ -66,10 +66,10 @@
 /* Non-temporal uint16_t store: bypasses L1/L2 cache on write to avoid polluting
  * the cache hierarchy with strided column-major cw_buffer writes (960KB, exceeds L2).
  * Caller must issue _mm_sfence() before the buffer is read back.
- * GCC/Clang: __builtin_nontemporal_store generates per-target optimal code.
- * MSVC: no 16-bit NT store exists in the ISA; falls back to plain assign
+ * Clang: __builtin_nontemporal_store generates per-target optimal code.
+ * GCC/MSVC: use plain assignment for 16-bit stores
  * (removing the cw prefetch hints still reduces fetch pressure). */
-#if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
 #define AB3D_NT_STORE_U16(ptr, val) __builtin_nontemporal_store((uint16_t)(val), (uint16_t *)(ptr))
 #else
 #define AB3D_NT_STORE_U16(ptr, val) (*(ptr) = (uint16_t)(val))

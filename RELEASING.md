@@ -1,6 +1,6 @@
 # Releasing
 
-Alien Breed 3D I releases are Windows x64 builds produced by GitHub Actions.
+Alien Breed 3D I releases are Windows x64 and Linux x64 builds produced by GitHub Actions.
 
 ## Create a Stable Release
 
@@ -13,20 +13,31 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-Tags matching `v*.*.*` run `.github/workflows/release.yml`. The workflow builds a clean Windows x64 Release binary, packages the staged runtime files, creates `SHA256SUMS.txt`, creates GitHub artifact attestations where supported, and publishes a GitHub release.
+Tags matching `v*.*.*` run `.github/workflows/release.yml`. The workflow builds clean Windows x64 and Linux x64 Release binaries, packages the staged runtime files, creates `SHA256SUMS.txt` covering both archives, creates GitHub artifact attestations where supported, and publishes a GitHub release after both builds succeed.
 
 Tags with a prerelease suffix, such as `v1.0.0-beta.1` or `v1.0.0-rc.1`, use the same workflow but are marked as GitHub prereleases and are not marked latest.
 
 Release assets appear on the GitHub Release for the tag:
 
 - `alien-breed-3d-i-<tag>-windows-x64.zip`
+- `alien-breed-3d-i-<tag>-linux-x64.tar.gz`
 - `SHA256SUMS.txt`
 
 The bundled `VERIFY_RELEASE.md` explains how players can verify checksums and provenance.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests. It configures and builds the Windows Release target and checks that the expected runtime output was staged next to `ab3d1.exe`.
+`.github/workflows/ci.yml` runs on pushes to `main` and on pull requests. It configures and builds Windows and Linux Release targets, checks the Windows runtime output, and uploads the Linux package as the `linux-x64` workflow artifact.
+
+Linux CI and releases use Ubuntu 22.04, the `linux-release` CMake preset, and the same pinned SDL2 source as desktop Windows builds. The Linux `.tar.gz` preserves executable permissions and contains one top-level directory with `ab3d1`, `ab3d.ini`, `README.txt`, `VERIFY_RELEASE.md`, `fonts/`, and `data/`. System audio/display libraries are supplied by the player's Linux installation.
+
+Local Linux packaging after building:
+
+```bash
+python3 tools/package_release.py --platform linux-x64 --build-dir build/linux-release --version v1.0.0 --output-dir dist
+```
+
+These workflows apply to tags containing the Linux build setup. Existing release tags remain unchanged.
 
 ## Optional Windows Code Signing
 

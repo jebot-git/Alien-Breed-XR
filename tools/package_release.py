@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Package the staged Windows runtime output created by the CMake build."""
+"""Package the staged native runtime output created by the CMake build."""
 
 import argparse
 from pathlib import Path
 import shutil
 import sys
+import tarfile
 import zipfile
 
 
@@ -34,8 +35,9 @@ def zip_dir(src_dir: Path, zip_path: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Create a Windows release zip.")
+    parser = argparse.ArgumentParser(description="Create a native release archive.")
     parser.add_argument("--build-dir", type=Path, default=ROOT / "build")
+    parser.add_argument("--platform", choices=("windows-x64", "linux-x64"), default="windows-x64")
     parser.add_argument("--config", default="Release")
     parser.add_argument("--version", required=True)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "dist")
@@ -44,10 +46,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    runtime_dir = (args.build_dir / args.config).resolve()
+    runtime_dir = args.build_dir.resolve()
+    if args.platform == "windows-x64":
+        runtime_dir /= args.config
     out_dir = args.output_dir.resolve()
-    stage_dir = out_dir / "stage" / f"alien-breed-3d-i-{args.version}-windows-x64"
-    archive_path = out_dir / f"alien-breed-3d-i-{args.version}-windows-x64.zip"
+    package_name = f"alien-breed-3d-i-{args.version}-{args.platform}"
+    stage_dir = out_dir / "stage" / package_name
+    suffix = ".zip" if args.platform == "windows-x64" else ".tar.gz"
+    archive_path = out_dir / f"{package_name}{suffix}"
 
     if not runtime_dir.is_dir():
         print(f"Runtime directory not found: {runtime_dir}", file=sys.stderr)
@@ -58,7 +64,8 @@ def main() -> int:
     stage_dir.mkdir(parents=True)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    copy_file(runtime_dir / "ab3d1.exe", stage_dir / "ab3d1.exe")
+    executable = "ab3d1.exe" if args.platform == "windows-x64" else "ab3d1"
+    copy_file(runtime_dir / executable, stage_dir / executable)
     copy_file(runtime_dir / "README.txt", stage_dir / "README.txt")
 
     ini_src = runtime_dir / "ab3d.ini"
@@ -79,8 +86,12 @@ def main() -> int:
 
     if archive_path.exists():
         archive_path.unlink()
-    zip_dir(stage_dir, archive_path)
-    shutil.rmtree(out_dir / "stage")
+    if args.platform == "windows-x64":
+        zip_dir(stage_dir, archive_path)
+    else:
+        with tarfile.open(archive_path, "w:gz") as archive:
+            archive.add(stage_dir, arcname=package_name)
+    shutil.rmtree(stage_dir)
 
     print(archive_path)
     return 0

@@ -2,6 +2,15 @@
   "version": 3,
   "configurePresets": [
     {
+      "name": "linux-release",
+      "displayName": "Linux Release (x64)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "emscripten-release",
       "displayName": "Emscripten Release (default web)",
       "description": "Single-threaded wasm (no SharedArrayBuffer). Works on GitHub Pages and ordinary https hosting.",
@@ -23,6 +32,10 @@
     }
   ],
   "buildPresets": [
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
+    },
     {
       "name": "emscripten-release",
       "configurePreset": "emscripten-release"

@@ -54,6 +54,11 @@ MOUSE CAPTURE
 - The mouse pointer is visible until you left-click inside the game window to capture it (windowed or fullscreen).
 - Press Esc while captured to release capture, show the pointer again, and open the menu.
 
+LINUX BUILD
+- Extract the entire .tar.gz into a writable directory and run ./ab3d1 inside the extracted folder.
+- Keep data/ and fonts/ beside the executable.
+- Linux x64 releases are built on Ubuntu 22.04 and use system audio/display libraries.
+
 WEB BUILD
 - The web build plays all 16 levels, with the same progression and ending as the desktop build.
 - Browser autosaves, menu options, and settings persist in local storage for the site.

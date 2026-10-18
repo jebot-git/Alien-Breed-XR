@@ -55,5 +55,5 @@ MOUSE CAPTURE
 - Press Esc while captured to release capture, show the pointer again, and open the menu.
 
 WEB BUILD
-- The web build plays the first 8 levels, then loops back to level 1.
+- The web build plays all 16 levels, with the same progression and ending as the desktop build.
 - Browser autosaves, menu options, and settings persist in local storage for the site.

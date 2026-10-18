@@ -429,7 +429,7 @@
         <p><strong>Gamepad:</strong> left stick move, right stick turn, RT fire, LT/A use, B duck toggle, LB/RB weapon cycle, L3 run, R3/Y look behind, Back automap, D-pad Up/Down zoom.</p>
         <p><strong>Weapons:</strong> 1-6 (or numpad); mouse wheel cycles. <strong>Tab:</strong> automap; PgUp/PgDn zoom.</p>
         <p><strong>Saves:</strong> autosaves, menu options, and settings persist in browser storage. F5/F9 quick save/load are off unless enabled in ab3d.ini.</p>
-        <p><strong>Web build:</strong> This release includes the first 8 levels; after level 8, the game returns to level 1. <strong>F11</strong> toggles fullscreen.</p>
+        <p><strong>Web build:</strong> This release includes all 16 levels. <strong>F11</strong> toggles fullscreen.</p>
       </div>
       <div class="remote-multiplayer-tip__note">
         Audio may stay muted until you click or tap the page (browser autoplay policy).

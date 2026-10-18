@@ -895,8 +895,6 @@ int play_game_outer_should_continue(GameState *state)
     return 1;
 }
 #else
-enum { WEB_PLAYABLE_LEVEL_COUNT = 8 };
-
 typedef enum {
     EM_OUTER_BR_NEW_GAME,
     EM_OUTER_BR_GAMEOVER,
@@ -1016,15 +1014,6 @@ int play_game_outer_emscripten_finish(GameState *state)
     case EM_OUTER_BR_WELLDONE:
         display_clear_screen_tint();
         printf("[MUSIC] outcome: well done\n");
-        /* Web build: after the playable release slice, loop to the first level instead of continuing. */
-        if (state->current_level == WEB_PLAYABLE_LEVEL_COUNT - 1) {
-            state->current_level = 0;
-            s_autosave_next_level_start = true;
-            s_show_transition_level_text = true;
-            printf("[CONTROL] Web: after level %d, looping to level 0 (player state preserved)\n",
-                   WEB_PLAYABLE_LEVEL_COUNT);
-            return 1;
-        }
         state->current_level++;
         s_autosave_next_level_start = true;
         s_show_transition_level_text = true;

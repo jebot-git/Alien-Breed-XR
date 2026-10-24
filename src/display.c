@@ -3525,6 +3525,36 @@ static void display_key_hud_free_textures(void)
     }
 }
 
+/* Static HUD textures need filtered minification when their screen footprint
+ * is smaller than the source. SDL handles non-GL renderers via ScaleMode. */
+static void display_hud_texture_mipmaps(SDL_Texture *tex, GLint magnification)
+{
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+    if (g_gl_unpack_ok && g_gl_hud_ok) {
+        if (!g_gl_generate_mipmap || !g_gl_tex_parameteri)
+            display_load_gl_mipmap_procs();
+        if (g_gl_generate_mipmap && g_gl_tex_parameteri) {
+            float tw = 0.0f, th = 0.0f;
+            if (SDL_GL_BindTexture(tex, &tw, &th) == 0) {
+                g_gl_tex_parameteri(DGL_TEXTURE_2D, DGL_TEXTURE_MIN_FILTER,
+                                    (GLint)DGL_LINEAR_MIPMAP_LINEAR);
+                g_gl_tex_parameteri(DGL_TEXTURE_2D, DGL_TEXTURE_MAG_FILTER,
+                                    magnification);
+                g_gl_tex_parameteri(DGL_TEXTURE_2D, DGL_TEXTURE_WRAP_S,
+                                    (GLint)DGL_CLAMP_TO_EDGE);
+                g_gl_tex_parameteri(DGL_TEXTURE_2D, DGL_TEXTURE_WRAP_T,
+                                    (GLint)DGL_CLAMP_TO_EDGE);
+                g_gl_generate_mipmap(DGL_TEXTURE_2D);
+                SDL_GL_UnbindTexture(tex);
+            }
+        }
+    }
+#else
+    (void)tex;
+    (void)magnification;
+#endif
+}
+
 static SDL_Texture *display_key_hud_texture_for_frame(int frame_idx)
 {
     if (frame_idx < 0 || frame_idx >= 4 || !g_sdl_ren) return NULL;
@@ -3543,25 +3573,7 @@ static SDL_Texture *display_key_hud_texture_for_frame(int frame_idx)
     SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
 #if SDL_VERSION_ATLEAST(2, 0, 12)
     SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
-    if (g_gl_unpack_ok && g_gl_hud_ok) {
-        if (!g_gl_generate_mipmap || !g_gl_tex_parameteri)
-            display_load_gl_mipmap_procs();
-        if (g_gl_generate_mipmap && g_gl_tex_parameteri) {
-            float tw = 0.0f, th = 0.0f;
-            if (SDL_GL_BindTexture(t, &tw, &th) == 0) {
-                g_gl_tex_parameteri(DGL_TEXTURE_2D, DGL_TEXTURE_MIN_FILTER,
-                                    (GLint)DGL_LINEAR_MIPMAP_LINEAR);
-                g_gl_tex_parameteri(DGL_TEXTURE_2D, DGL_TEXTURE_MAG_FILTER,
-                                    (GLint)GL_NEAREST);
-                g_gl_tex_parameteri(DGL_TEXTURE_2D, DGL_TEXTURE_WRAP_S,
-                                    (GLint)DGL_CLAMP_TO_EDGE);
-                g_gl_tex_parameteri(DGL_TEXTURE_2D, DGL_TEXTURE_WRAP_T,
-                                    (GLint)DGL_CLAMP_TO_EDGE);
-                g_gl_generate_mipmap(DGL_TEXTURE_2D);
-                SDL_GL_UnbindTexture(t);
-            }
-        }
-    }
+    display_hud_texture_mipmaps(t, GL_NEAREST);
 #endif
     g_key_hud_tex[frame_idx] = t;
     return t;
@@ -4220,10 +4232,22 @@ static SDL_Texture *display_bar_hud_texture(int kind)
     }
     SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
 #if SDL_VERSION_ATLEAST(2, 0, 12)
-    SDL_SetTextureScaleMode(tex, SDL_ScaleModeNearest);
+    SDL_SetTextureScaleMode(tex, SDL_ScaleModeLinear);
+    display_hud_texture_mipmaps(tex, GL_LINEAR);
 #endif
     g_bar_hud_tex[kind] = tex;
     return tex;
+}
+
+/* Anchor the fill to the track bottom and round upward: a non-zero amount
+ * must remain visible even when one source row is less than one screen pixel. */
+static SDL_Rect display_hud_bar_fill_rect(SDL_Rect track, int value, int maximum)
+{
+    if (value < 0) value = 0;
+    if (value > maximum) value = maximum;
+    int filled = (value * track.h + maximum - 1) / maximum;
+    SDL_Rect fill = { track.x, track.y + track.h - filled, track.w, filled };
+    return fill;
 }
 
 static void display_hud_stats_sdl_overlay(const GameState *state)
@@ -4241,7 +4265,7 @@ static void display_hud_stats_sdl_overlay(const GameState *state)
     /* Compact borderless HUD requested from the Amiga reference: half-view
      * height, narrow strips, centred vertically at the side edges. */
     int bw = ph * 4 / 256;
-    if (bw < 2) bw = 2;
+    if (bw < 4) bw = 4;
     int margin = ph * 8 / 256;
     int full_h = ph * 128 / 256;
     int top = (ph - full_h) / 2;
@@ -4257,11 +4281,10 @@ static void display_hud_stats_sdl_overlay(const GameState *state)
         int rows = kind ? value * 2 : value;
         if (rows == 0) continue;
         SDL_Rect src = { 0, missing_rows, 8, rows };
-        int y0 = top + missing_rows * full_h / 128;
-        int y1 = top + (missing_rows + rows) * full_h / 128;
-        SDL_Rect dst = { g_present_dst_rect.x + x, g_present_dst_rect.y + y0,
-                         bw, y1 - y0 };
-        if (dst.h > 0) display_overlay_copy(display_bar_hud_texture(kind), &src, &dst);
+        SDL_Rect track = { g_present_dst_rect.x + x, g_present_dst_rect.y + top,
+                           bw, full_h };
+        SDL_Rect dst = display_hud_bar_fill_rect(track, value, maximum);
+        display_overlay_copy(display_bar_hud_texture(kind), &src, &dst);
     }
 }
 

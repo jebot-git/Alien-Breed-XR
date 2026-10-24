@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run movement and audio regression checks using Emscripten and Node."""
+"""Run movement, audio and HUD regression checks using Emscripten and Node."""
 import argparse
 from pathlib import Path
 import shutil
@@ -22,10 +22,11 @@ def main():
     for name, sources, flags in (
         ("movement", ["src/math_tables.c", "src/level.c"], []),
         ("audio", [], ["-sUSE_SDL=2"]),
+        ("hud", [], ["-sUSE_SDL=2"]),
     ):
         target = output / f"{name}.js"
         subprocess.run(compiler + [f"tests/feedback_{name}.c"] + sources +
-                       ["-Isrc", "-O2", "-sENVIRONMENT=node", "-sEXIT_RUNTIME=1"] +
+                       ["-Isrc", "-Ithird_party", "-O2", "-sENVIRONMENT=node", "-sEXIT_RUNTIME=1"] +
                        flags + ["-o", str(target)], cwd=root, check=True)
         subprocess.run([node, str(target)], cwd=root, check=True)
 

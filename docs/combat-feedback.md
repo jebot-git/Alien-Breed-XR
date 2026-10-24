@@ -24,6 +24,9 @@ The six requested changes are implemented in the PC and web paths:
    Options > HUD switches between BARS (default, `hud_bars=1`) and the previous
    NUMBERS display (`hud_bars=0`). The choice persists in the desktop INI or
    browser local storage, and loading a game keeps the current HUD preference.
+   Small viewports use filtered bar textures (mipmaps on the GL path), a
+   four-pixel minimum width, and upward-rounded fill heights. Non-zero health
+   or ammo remains visible, and full values fill the track at every size.
 5. `AB3DI.s` `oknothalf` / `nowaterfull` switch the CIA audio filter whenever
    `fillscrnwater` is nonzero. The port follows that same water state, independently
    of `post_tint`, using a 3 kHz two-pole Butterworth filter on the mixed output.
@@ -54,3 +57,6 @@ The movement checks cover 1,920 combinations of control mode, always-run,
 modifier, crouch, direction and tick batching. Audio checks cover desktop
 8007 Hz and web 48000 Hz, dry bypass, low/high frequency response, silence,
 and entering/leaving water.
+HUD checks cover bottom alignment, monotonic fill, empty/full values and a
+visible last health/ammo unit at small sizes. Browser pixel comparisons at
+160x120, 320x200, 640x480 and 1280x720 pass through both GL and SDL paths.

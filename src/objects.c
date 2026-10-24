@@ -862,13 +862,31 @@ static GameObject *find_free_burn_flame_slot(GameState *state, int16_t *saved_ci
     return first_free;
 }
 
-/* Amiga Noisevol (sfx importance / channel mix) → PC mixer 0–255 (see SoundPlayer.s). */
+/* Legacy gain conversion for local player pain. World emitters must use
+ * object_play_noise so Noisevol controls distance falloff, not a fixed gain. */
 static inline int amiga_noisevol_to_pc(int noisevol)
 {
     if (noisevol < 1) noisevol = 1;
     int v = (noisevol * 255 + 400) / 800;
     if (v > 255) v = 255;
     return v;
+}
+
+/* Original enemy handlers and Anims.s ItsAGasPipe pass the emitter position
+ * and Noisevol to SoundPlayer.s MakeSomeNoise. Keep listener selection and
+ * distance attenuation shared across their attacks, vocals and deaths. */
+static void object_play_noise(const GameObject *obj, const GameState *state,
+                              int sample, int noisevol)
+{
+    int16_t x, z;
+    int cid = OBJ_CID(obj);
+    if (!state->level.object_points || cid < 0 ||
+        cid >= state->level.num_object_points) return;
+    const PlayerState *listener = state->mode == MODE_SLAVE
+        ? &state->plr2 : &state->plr1;
+    get_object_pos(&state->level, cid, &x, &z);
+    audio_play_sample(sample, audio_distance_volume(noisevol,
+        x - listener->p_xoff, z - listener->p_zoff));
 }
 
 static inline bool enemy_is_human_marine(int8_t obj_type)
@@ -988,7 +1006,7 @@ static void enemy_update_flying_soft_dead(GameObject *obj,
         if (OBJ_DEADL(obj) < 20) {
             int splatv = (params->gib_splat_noisevol > 0) ? params->gib_splat_noisevol : 400;
             int16_t gib_level = (int16_t)((OBJ_TD_W(obj, ENEMY_FOURTH_TIMER_OFF) >> 4) + 1);
-            audio_play_sample(14, amiga_noisevol_to_pc(splatv));
+            object_play_noise(obj, state, 14, splatv);
             explode_into_bits(obj, state, false, gib_level);
             OBJ_SET_DEADL(obj, 20);
         }
@@ -1003,11 +1021,11 @@ static void enemy_death_marine_like(GameObject *obj, const EnemyParams *params,
 {
     if (damage > 1 || explosion_damage) {
         int16_t gib_level = enemy_gib_level_from_damage(obj, params, damage);
-        audio_play_sample(14, amiga_noisevol_to_pc(400));
+        object_play_noise(obj, state, 14, 400);
         explode_into_bits(obj, state, explosion_damage, gib_level);
     }
     if ((!instant_kill || explosion_damage) && params->death_frames[0] >= 0) {
-        audio_play_sample(scream_sample, amiga_noisevol_to_pc(200));
+        object_play_noise(obj, state, scream_sample, 200);
     }
     enemy_apply_death_outcome(obj, params, instant_kill);
 }
@@ -1259,8 +1277,7 @@ static bool enemy_tick_burning(GameObject *obj, GameState *state, int obj_index,
     state->enemy_burn_damage_accum[obj_index] = (int16_t)damage_accum;
 
     if (params->scream_sound >= 0 && (rand() & 31) == 0) {
-        audio_play_sample(params->scream_sound,
-                          amiga_noisevol_to_pc(ENEMY_BURN_SCREAM_NOISEVOL));
+        object_play_noise(obj, state, params->scream_sound, ENEMY_BURN_SCREAM_NOISEVOL);
     }
 
     return false;
@@ -1352,7 +1369,7 @@ static bool enemy_check_damage(GameObject *obj, const EnemyParams *params, GameS
         NASTY_LIVES(*obj) = lives_b;
         if (lives_b > 0) {
             if (params->scream_sound >= 0) {
-                audio_play_sample(params->scream_sound, amiga_noisevol_to_pc(200));
+                object_play_noise(obj, state, params->scream_sound, 200);
             }
             return false;
         }
@@ -1402,14 +1419,14 @@ static bool enemy_check_damage(GameObject *obj, const EnemyParams *params, GameS
             explosion_spawn(state, bx, bz, OBJ_ZONE(obj), obj->obj.in_top,
                             ((int32_t)obj_w(obj->raw + 4)) << 7,
                             120, 100);
-            audio_play_sample(15, amiga_noisevol_to_pc(400));
+            object_play_noise(obj, state, 15, 400);
             enemy_convert_to_blue_key(obj, state);
         }
         return true;
 
     case ENEMY_DMG_AUDIO_BIG_GIB:
         /* BigRedThing.s / BigClaws.s / Tree.s: #14@400 + gibs, no screamsound on kill */
-        audio_play_sample(14, amiga_noisevol_to_pc(400));
+        object_play_noise(obj, state, 14, 400);
         explode_into_bits(obj, state, explosion_damage, 7);
         if (obj->obj.number == OBJ_NBR_HUGE_RED_THING) {
             /* Final boss should drop the blue key on death. */
@@ -1424,11 +1441,11 @@ static bool enemy_check_damage(GameObject *obj, const EnemyParams *params, GameS
         int splatv = (params->gib_splat_noisevol > 0) ? params->gib_splat_noisevol : 400;
         if (damage > 1 || explosion_damage) {
             int16_t gib_level = enemy_gib_level_from_damage(obj, params, damage);
-            audio_play_sample(14, amiga_noisevol_to_pc(splatv));
+            object_play_noise(obj, state, 14, splatv);
             explode_into_bits(obj, state, explosion_damage, gib_level);
         }
         if ((!instant_kill || explosion_damage) && params->death_frames[0] >= 0) {
-            audio_play_sample(params->scream_sound, amiga_noisevol_to_pc(200));
+            object_play_noise(obj, state, params->scream_sound, 200);
         }
         enemy_apply_death_outcome(obj, params, instant_kill);
         return true;
@@ -1437,7 +1454,7 @@ static bool enemy_check_damage(GameObject *obj, const EnemyParams *params, GameS
     case ENEMY_DMG_AUDIO_FLYING:
         /* EyeBall.s: kill path always gibs/removes (sample #14 @ 400). */
         if (obj->obj.number == OBJ_NBR_EYEBALL) {
-            audio_play_sample(14, amiga_noisevol_to_pc(400));
+            object_play_noise(obj, state, 14, 400);
             explode_into_bits(obj, state, explosion_damage, 9);
             OBJ_SET_ZONE(obj, -1);
             return true;
@@ -1445,14 +1462,14 @@ static bool enemy_check_damage(GameObject *obj, const EnemyParams *params, GameS
 
         /* FlyingScalyBall.s: killing blow >40 -> #14@400+gib; else #8@200 + soft death. */
         if (instant_kill) {
-            audio_play_sample(14, amiga_noisevol_to_pc(400));
+            object_play_noise(obj, state, 14, 400);
             explode_into_bits(obj, state, explosion_damage, 9);
             if (explosion_damage && params->scream_sound >= 0)
-                audio_play_sample(params->scream_sound, amiga_noisevol_to_pc(200));
+                object_play_noise(obj, state, params->scream_sound, 200);
             OBJ_SET_ZONE(obj, -1);
         } else {
             if (params->scream_sound >= 0)
-                audio_play_sample(params->scream_sound, amiga_noisevol_to_pc(200));
+                object_play_noise(obj, state, params->scream_sound, 200);
             NASTY_LIVES(*obj) = 0;
             OBJ_SET_DEADL(obj, 18);
             OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, 30);
@@ -1463,14 +1480,14 @@ static bool enemy_check_damage(GameObject *obj, const EnemyParams *params, GameS
     case ENEMY_DMG_AUDIO_BIGUGLY:
         /* BigUglyAlien.s: lowscream #8 @200 only, no gibs on kill */
         if (params->scream_sound >= 0)
-            audio_play_sample(params->scream_sound, amiga_noisevol_to_pc(200));
+            object_play_noise(obj, state, params->scream_sound, 200);
         enemy_apply_death_outcome(obj, params, instant_kill);
         return true;
 
     case ENEMY_DMG_AUDIO_GENERIC:
     default:
         if (params->death_sound >= 0) {
-            audio_play_sample(params->death_sound, amiga_noisevol_to_pc(200));
+            object_play_noise(obj, state, params->death_sound, 200);
         }
         if (damage > 1 || explosion_damage) {
             int16_t gib_level = enemy_gib_level_from_damage(obj, params, damage);
@@ -1950,11 +1967,7 @@ static void enemy_tick_sec_timer_vocal(GameObject *obj, GameState *state,
             samp = params->periodic_vocal1 + (int)(rand() % vspan);
         }
         int noisevol = attacking ? params->periodic_vol_attack : params->periodic_vol_idle;
-        if (noisevol < 1) noisevol = 1;
-        int vol = (noisevol * 255 + 400) / 800;
-        if (vol < 12) vol = 12;
-        if (vol > 255) vol = 255;
-        audio_play_sample(samp, vol);
+        object_play_noise(obj, state, samp, noisevol);
 
         int tspan = (int)params->hiss_timer_range + 1;
         if (tspan < 1) tspan = 1;
@@ -2650,7 +2663,7 @@ static void enemy_handle_big_red_variant(GameObject *obj, GameState *state, bool
         if (fourth_timer < 20) {
             fourth_timer = 30;
             OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, (int16_t)(100 + (rand() & 0x7F)));
-            audio_play_sample(9, 100);
+            object_play_noise(obj, state, 9, 100);
             if (big_claws) {
                 enemy_fire_at_player(obj, state, target_player, 2, 10, 64, 6);
             } else {
@@ -2798,7 +2811,7 @@ void object_handle_robot(GameObject *obj, GameState *state)
                     }
                     OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, third_after);
                 }
-                audio_play_sample(9, 100);
+                object_play_noise(obj, state, 9, 100);
                 enemy_fire_at_player(obj, state, target_player, 4, 10, 16, 3);
                 fired_this_tick = true;
             }
@@ -2900,7 +2913,7 @@ void object_handle_worm(GameObject *obj, GameState *state)
                 }
                 OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, third_after);
             }
-            audio_play_sample(9, 100);
+            object_play_noise(obj, state, 9, 100);
             enemy_fire_at_player(obj, state, target_player, 5, 10, 16, 3);
         }
         OBJ_SET_TD_W(obj, ENEMY_FOURTH_TIMER_OFF, fourth_timer);
@@ -3422,7 +3435,9 @@ void object_handle_marine(GameObject *obj, GameState *state)
             (type != OBJ_NBR_MARINE && fourth_timer < 20)) {
             if (type == OBJ_NBR_MARINE) {
                 OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, 50 + (int16_t)(rand() & 0xFF));
-                if (params->attack_sound >= 0) audio_play_sample(params->attack_sound, 100);
+                /* MutantMarine.s hitscan burst uses Noisevol=200. Projectile
+                 * attackers use AlienControl.s FireAtPlayer's Noisevol=100. */
+                if (params->attack_sound >= 0) object_play_noise(obj, state, params->attack_sound, 200);
                 if (state->cfg_marine_hitscan_projectiles) {
                     /* Optional non-parity path: use SHOTTYPE 0, the orange plasma
                      * projectile fired by EyeBall.s / FlyingScalyBall.s. */
@@ -3434,15 +3449,15 @@ void object_handle_marine(GameObject *obj, GameState *state)
                 }
             } else if (type == OBJ_NBR_TOUGH_MARINE) {
                 OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, 50 + (int16_t)(rand() & 0x1F));
-                if (params->attack_sound >= 0) audio_play_sample(params->attack_sound, 100);
+                if (params->attack_sound >= 0) object_play_noise(obj, state, params->attack_sound, 100);
                 enemy_fire_at_player(obj, state, target_player, 6, 7, 32, 4);
             } else if (type == OBJ_NBR_FLAME_MARINE) {
                 fourth_timer = 25;
-                if (params->attack_sound >= 0) audio_play_sample(params->attack_sound, 100);
+                if (params->attack_sound >= 0) object_play_noise(obj, state, params->attack_sound, 100);
                 enemy_fire_at_player(obj, state, target_player, 3, 7, 8, 2);
             } else {
                 OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, 200 + (int16_t)(rand() & 0xFF));
-                if (params->attack_sound >= 0) audio_play_sample(params->attack_sound, 100);
+                if (params->attack_sound >= 0) object_play_noise(obj, state, params->attack_sound, 100);
                 marine_hitscan_burst(obj, state, target_player, 5, 2);
             }
             OBJ_SET_TD_W(obj, ENEMY_FOURTH_TIMER_OFF, fourth_timer);
@@ -3490,7 +3505,7 @@ void object_handle_big_nasty(GameObject *obj, GameState *state)
         if (dist <= 80) {
             PlayerState *plr = (target_player == 1) ? &state->plr1 : &state->plr2;
             plr->energy -= (int16_t)state->temp_frames;
-            audio_play_sample(2, amiga_noisevol_to_pc(50)); /* BigUglyAlien.s GotThere */
+            object_play_noise(obj, state, 2, 50); /* BigUglyAlien.s GotThere */
         }
 
         /* BigUglyAlien.s: baddiegun (#9) at Noisevol 200; SecTimer = 50+(rand&7) after shot */
@@ -3498,9 +3513,7 @@ void object_handle_big_nasty(GameObject *obj, GameState *state)
         sec_timer = (int16_t)(sec_timer - state->temp_frames);
         if (sec_timer < 0) {
             sec_timer = (int16_t)(50 + (rand() & 7));
-            int vol = (200 * 255 + 400) / 800;
-            if (vol > 255) vol = 255;
-            audio_play_sample(9, vol);
+            object_play_noise(obj, state, 9, 200);
             enemy_fire_at_player(obj, state, target_player, 1, 10, 16, 4);
         }
         OBJ_SET_TD_W(obj, ENEMY_SEC_TIMER_OFF, sec_timer);
@@ -3579,7 +3592,7 @@ void object_handle_flying_nasty(GameObject *obj, GameState *state)
 
         if (fourth_timer < 20) {
             OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, 50);
-            audio_play_sample(20, 100);
+            object_play_noise(obj, state, 20, 100);
             enemy_fire_at_player(obj, state, target_player, 0, 5, 16, 3);
             fired_this_tick = true;
         }
@@ -3684,7 +3697,7 @@ void object_handle_tree(GameObject *obj, GameState *state)
                 int16_t third_base = (target_player == 2) ? 100 : 300;
                 OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, (int16_t)(third_base + (rand() & 0x7F)));
             }
-            audio_play_sample(16, 100);
+            object_play_noise(obj, state, 16, 100);
             (void)enemy_spawn_tree_eyeball(obj, state);
             fired_this_tick = true;
         }
@@ -3763,7 +3776,7 @@ void object_handle_gas_pipe(GameObject *obj, GameState *state)
     if (sec <= 0) {
         OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, OBJ_TD_W(obj, ENEMY_OBJ_TIMER_OFF));
     }
-    if (sec == 4) audio_play_sample(22, 200);
+    if (sec == 4) object_play_noise(obj, state, 22, 200);
 
     /* Spawn one flame projectile (Amiga: at most one per handler call). */
     if (!state->level.nasty_shot_data) return;

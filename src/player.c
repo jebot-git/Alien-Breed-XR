@@ -104,17 +104,18 @@ static bool player_should_run(const GameState *state, const uint8_t *key_map,
 }
 
 /* Keep keyboard and mouse/gamepad movement on the same acceleration rule.
- * The requested 30% PC run boost is applied after original integer-speed
+ * The selected PC run percentage is applied after original integer-speed
  * and crouch rounding; walking retains Plr1Control.s arithmetic. */
 static void player_accelerate(int32_t *xspd, int32_t *zspd,
                               int32_t sin_val, int32_t cos_val,
-                              int16_t fwd, int16_t strafe, bool running)
+                              int16_t fwd, int16_t strafe, bool running,
+                              int run_percent)
 {
     int32_t ax = -sin_val * fwd - cos_val * strafe;
     int32_t az = -cos_val * fwd + sin_val * strafe;
     if (running) {
-        ax = ax * 13 / 10;
-        az = az * 13 / 10;
+        ax = ax * run_percent / 100;
+        az = az * run_percent / 100;
     }
     *xspd += ax;
     *zspd += az;
@@ -966,7 +967,8 @@ static void player_keyboard_control(PlayerState *plr, const uint8_t *key_map,
     int32_t cos_val = plr->s_cosval;
 
     player_accelerate(&xspd, &zspd, sin_val, cos_val, fwd, strafe,
-                      player_should_run(state, key_map, keys));
+                      player_should_run(state, key_map, keys),
+                      state ? state->cfg_run_speed : RUN_SPEED_PERCENT_DEFAULT);
 
     /* ---- Apply velocity to position ---- */
     plr->s_xspdval = xspd;
@@ -1462,7 +1464,8 @@ static void player_mouse_kbd_control(PlayerState *plr, const uint8_t *key_map,
 
     /* Forward: x -= sin*fwd, z -= cos*fwd */
     player_accelerate(&xspd, &zspd, sin_val, cos_val, fwd, strafe,
-                      player_should_run(state, key_map, keys));
+                      player_should_run(state, key_map, keys),
+                      state ? state->cfg_run_speed : RUN_SPEED_PERCENT_DEFAULT);
 
     /* ---- Apply velocity ---- */
     plr->s_xspdval = xspd;
@@ -2739,6 +2742,7 @@ static bool player_apply_pending_full_save_after_level_load(GameState *state)
     bool    ini_cfg_quicksave_load = state->cfg_quicksave_load;
     bool    ini_cfg_marine_hitscan_projectiles = state->cfg_marine_hitscan_projectiles;
     bool    ini_cfg_run_default = state->cfg_run_default;
+    int16_t ini_cfg_run_speed = state->cfg_run_speed;
     bool    ini_cfg_hud_bars = state->cfg_hud_bars;
     bool    ini_cfg_footsteps_water_only = state->cfg_footsteps_water_only;
     uint8_t ini_cfg_crosshair_colour = state->cfg_crosshair_colour;
@@ -2772,6 +2776,7 @@ static bool player_apply_pending_full_save_after_level_load(GameState *state)
     state->cfg_quicksave_load = ini_cfg_quicksave_load;
     state->cfg_marine_hitscan_projectiles = ini_cfg_marine_hitscan_projectiles;
     state->cfg_run_default = ini_cfg_run_default;
+    state->cfg_run_speed = ini_cfg_run_speed;
     state->cfg_hud_bars = ini_cfg_hud_bars;
     state->cfg_footsteps_water_only = ini_cfg_footsteps_water_only;
     state->cfg_crosshair_colour = ini_cfg_crosshair_colour;

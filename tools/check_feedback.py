@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run movement, shooting, audio and HUD checks using Emscripten and Node."""
+"""Run movement, settings, shooting, audio and HUD checks using Emscripten and Node."""
 import argparse
 from pathlib import Path
 import shutil
@@ -21,7 +21,11 @@ def main():
         parser.error("Node is required to execute the WebAssembly regression checks")
     for name, sources, flags in (
         ("movement", ["src/math_tables.c", "src/level.c"], []),
+        ("settings", ["src/game_state.c", "src/game_data.c", "src/logging.c"], ["-sUSE_SDL=2"]),
         ("audio", [], ["-sUSE_SDL=2"]),
+        ("enemy_audio", ["src/math_tables.c", "src/game_data.c", "src/level.c",
+                         "src/movement.c", "src/visibility.c", "src/ai.c", "src/logging.c"],
+         ["-sUSE_SDL=2"]),
         ("hud", [], ["-sUSE_SDL=2"]),
         ("shooting", ["src/math_tables.c", "src/game_data.c", "src/objects.c",
                       "src/level.c", "src/movement.c", "src/visibility.c"],

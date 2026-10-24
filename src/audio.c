@@ -98,6 +98,7 @@ typedef struct {
     Uint32       position;   /* bytes played */
     int          volume;     /* 0-255 -> SDL_MixAudio uses 0-128 */
     int          sample_id;
+    Uint32       frame_id;
 } Channel;
 
 typedef struct {
@@ -881,6 +882,55 @@ void audio_play_sfx(int sfx_id, int volume, int channel)
     audio_play_sample(sfx_id, volume);
 }
 
+int audio_distance_volume(int noise_volume, int dx, int dz)
+{
+    /* SoundPlayer.s MakeSomeNoise: highest-bit seed, two Newton corrections,
+     * then Noisevol*64 / (distance/4+1), limited to Paula's 0..64 range. */
+    int64_t squared = (int64_t)dx * dx + (int64_t)dz * dz;
+    int volume = 64;
+    if (noise_volume <= 0) return 0;
+    if (squared > 0) {
+        int bit = 0;
+        for (int64_t n = squared; n >>= 1; ) bit++;
+        int64_t distance = (int64_t)1 << (bit / 2);
+        for (int i = 0; i < 2; i++) {
+            distance -= ((distance * distance - squared) >> 1) / distance;
+            if (distance < 1) distance = 1;
+        }
+        int64_t numerator = (int64_t)noise_volume * 64;
+        if (numerator > 32767) numerator = 32767;
+        volume = (int)(numerator / ((distance >> 2) + 1));
+        if (volume > 64) volume = 64;
+    }
+    return volume * 255 / 64;
+}
+
+/* Called with the audio device locked. Coalesce simultaneous emitters using
+ * the loudest contribution, so a distant pipe cannot hide a nearer one. */
+static void audio_queue_sample(int sample_id, int volume)
+{
+    if (g_sfx_frame_id != 0) {
+        if (g_sample_last_played_frame[sample_id] == g_sfx_frame_id) {
+            for (int c = 0; c < MAX_CHANNELS; c++) {
+                Channel *ch = &g_channels[c];
+                if (ch->sample_id == sample_id && ch->frame_id == g_sfx_frame_id &&
+                    !channel_is_free(ch) && volume > ch->volume)
+                    ch->volume = volume;
+            }
+            return;
+        }
+        g_sample_last_played_frame[sample_id] = g_sfx_frame_id;
+    }
+    int chan = choose_channel_for_play();
+    Channel *ch = &g_channels[chan];
+    ch->sample_data = g_samples[sample_id].data;
+    ch->sample_len = g_samples[sample_id].length;
+    ch->position = 0;
+    ch->volume = volume;
+    ch->sample_id = sample_id;
+    ch->frame_id = g_sfx_frame_id;
+}
+
 void audio_play_sample(int sample_id, int volume)
 {
     if (!g_audio_ready || g_device == 0)
@@ -909,24 +959,8 @@ void audio_play_sample(int sample_id, int volume)
     volume = (volume * g_master_volume + 50) / 100;
     if (volume <= 0)
         return;
-    if (g_sfx_frame_id != 0) {
-        if (g_sample_last_played_frame[sample_id] == g_sfx_frame_id)
-            return;
-        g_sample_last_played_frame[sample_id] = g_sfx_frame_id;
-    }
-
     SDL_LockAudioDevice(g_device);
-
-    /* Pick a channel that minimizes audible stomping. */
-    int chan = choose_channel_for_play();
-    Channel *ch = &g_channels[chan];
-
-    ch->sample_data = g_samples[sample_id].data;
-    ch->sample_len  = g_samples[sample_id].length;
-    ch->position    = 0;
-    ch->volume      = volume;
-    ch->sample_id   = sample_id;
-
+    audio_queue_sample(sample_id, volume);
     SDL_UnlockAudioDevice(g_device);
 }
 

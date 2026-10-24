@@ -105,6 +105,7 @@ void game_state_init(GameState *state)
     state->cfg_weapon_post_gl = false;
     state->cfg_crosshair_colour = 0;
     state->cfg_run_default = true;
+    state->cfg_run_speed = RUN_SPEED_PERCENT_DEFAULT;
     state->cfg_hud_bars = true;
     state->plr1_clumptime = 0;
     state->plr2_clumptime = 0;

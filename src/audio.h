@@ -42,6 +42,8 @@ void audio_stop_one_shot_module(void);
 void audio_begin_frame(void); /* Reset per-frame SFX dedupe state (call once per game logic tick). */
 void audio_play_sfx(int sfx_id, int volume, int channel);
 void audio_play_sample(int sample_id, int volume); /* MakeSomeNoise simplified */
+/* SoundPlayer.s MakeSomeNoise: original Noisevol and listener-relative world X/Z. */
+int audio_distance_volume(int noise_volume, int dx, int dz);
 void audio_stop_all(void);
 
 /* In-game music (mt_init / mt_end from SoundPlayer.s) */

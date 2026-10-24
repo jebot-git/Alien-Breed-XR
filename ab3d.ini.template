@@ -58,6 +58,10 @@ gamepad_look_speed=300
 # 0 = original-style walk by default; hold Shift to run.
 run_default=1
 
+# Options menu: Run Speed, 50..200 percent of original Amiga running speed.
+# Default 130 retains the PC run boost; walking speed is unchanged.
+run_speed=130
+
 # Options menu: HUD. 1 = compact translucent bars (default), 0 = previous numbers.
 hud_bars=1
 

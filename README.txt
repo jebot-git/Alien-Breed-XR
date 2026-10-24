@@ -48,6 +48,7 @@ GAME / UI
 - Esc: Open the in-game menu; also releases mouse capture when captured
 - Options: Invert Mouse toggles vertical mouse-look inversion and saves the setting.
 - Options: HUD switches between BARS (default) and the previous NUMBERS display.
+- Options: Run Speed adjusts from 50% to 200% in 10-point steps and saves the setting.
 - Autosaves: Load from the Autosaves menu
 - F5/F9: Quick save/load only when quicksave_load=1 is enabled in ab3d.ini
 - F6: Toggle Gouraud visualize mode
@@ -61,7 +62,9 @@ COMBAT / HUD
   numbers, using the original green/yellow/red palette.
   Ammo uses the original bar scale (full at 63 displayed rounds).
 - Water enables a software low-pass audio filter, including with post_tint=0.
-- Running is 30% faster than the previous port speed; walking is unchanged.
+- Run Speed: 100% is original Amiga speed; the default 130% retains the PC boost.
+  Walking speed is unchanged.
+- Enemy attacks, cries and deaths, and wall fire-spouts fade with distance.
 
 MOUSE CAPTURE
 - The mouse pointer is visible until you left-click inside the game window to capture it (windowed or fullscreen).

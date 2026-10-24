@@ -34,11 +34,25 @@ The six requested changes are implemented in the PC and web paths:
    software approximation, not an analog circuit simulation. Leaving gameplay
    clears the water target so menu/end music is not left muffled.
 6. Keyboard and mouse/gamepad control share a movement acceleration helper
-   that applies the requested 13/10 multiplier only while running, after the
+   that applies the selected 50-200% multiplier only while running, after the
    original `Plr1Control.s` integer speed/crouch calculation. Walking, friction,
-   turning and the run/walk modifier retain their existing behavior.
+   turning and the run/walk modifier retain their existing behavior. Options >
+   Run Speed adjusts in 10-point steps; 100% is original speed and the default
+   130% retains the requested PC boost. `run_speed` persists in the desktop INI
+   or browser local storage, and loading a game keeps the current preference.
 
 No replacement gameplay rules or placeholder effects were introduced.
+
+Enemy attacks, idle vocals, pain/death cries and wall fire-spouts now share
+`SoundPlayer.s` `MakeSomeNoise` distance attenuation instead of fixed mixer
+gains. Original enemy handlers and `AlienControl.s` `FireAtPlayer1/2` supply
+the sound strengths. Simultaneous sources of the same sample retain the
+loudest contribution without restarting the burst. The active local player
+determines the listener, including the slave player in multiplayer.
+
+The level 8 walker was checked against the authored `level_h` geometry and
+`Robot.s` movement dimensions. It can cross all four starting-room exits;
+its movement and size were left unchanged because no blocked gap was identified.
 
 A follow-up to the level 15 worm report found that targeting used the previous
 tick's position/aim. `AB3DI.s` refreshes `CalcPLR1InLine` / `CalcPLR2InLine`

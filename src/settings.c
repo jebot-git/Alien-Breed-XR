@@ -33,6 +33,7 @@ static void log_effective_settings(const GameState *state,
 #define SETTINGS_WEB_CROSSHAIR_KEY           "ab3d1.settings.crosshair"
 #define SETTINGS_WEB_GAMEPAD_LOOK_SPEED_KEY  "ab3d1.settings.gamepad_look_speed"
 #define SETTINGS_WEB_HUD_BARS_KEY            "ab3d1.settings.hud_bars"
+#define SETTINGS_WEB_RUN_SPEED_KEY           "ab3d1.settings.run_speed"
 #define SETTINGS_WEB_RUN_DEFAULT_KEY         "ab3d1.settings.run_default"
 
 EM_JS(int, settings_web_local_storage_get_int,
@@ -190,7 +191,8 @@ static int settings_write_menu_options_line(FILE *out,
                                             int *saw_crosshair,
                                             int *saw_gamepad_look_speed,
                                             int *saw_run_default,
-                                            int *saw_hud_bars)
+                                            int *saw_hud_bars,
+                                            int *saw_run_speed)
 {
     char key[64];
 
@@ -234,6 +236,10 @@ static int settings_write_menu_options_line(FILE *out,
         return fprintf(out, "%s=%d\n", key,
                        (int)state->cfg_gamepad_look_speed) >= 0;
     }
+    if (strcmp(key, "run_speed") == 0) {
+        *saw_run_speed = 1;
+        return fprintf(out, "run_speed=%d\n", (int)state->cfg_run_speed) >= 0;
+    }
     if (strcmp(key, "hud_bars") == 0) {
         *saw_hud_bars = 1;
         return fprintf(out, "hud_bars=%d\n", state->cfg_hud_bars ? 1 : 0) >= 0;
@@ -257,10 +263,11 @@ static int settings_append_missing_menu_options(FILE *out,
                                                 int saw_crosshair,
                                                 int saw_gamepad_look_speed,
                                                 int saw_run_default,
-                                                int saw_hud_bars)
+                                                int saw_hud_bars,
+                                                int saw_run_speed)
 {
     if (saw_mouse_look && saw_invert_mouse && saw_show_fps && saw_volume &&
-        saw_crosshair && saw_gamepad_look_speed && saw_run_default && saw_hud_bars) {
+        saw_crosshair && saw_gamepad_look_speed && saw_run_default && saw_hud_bars && saw_run_speed) {
         return 1;
     }
     if (fprintf(out, "\n# Runtime menu options\n") < 0) return 0;
@@ -291,6 +298,10 @@ static int settings_append_missing_menu_options(FILE *out,
                 (int)state->cfg_gamepad_look_speed) < 0) {
         return 0;
     }
+    if (!saw_run_speed &&
+        fprintf(out, "run_speed=%d\n", (int)state->cfg_run_speed) < 0) {
+        return 0;
+    }
     if (!saw_hud_bars &&
         fprintf(out, "hud_bars=%d\n", state->cfg_hud_bars ? 1 : 0) < 0) {
         return 0;
@@ -319,6 +330,7 @@ static void settings_save_menu_options_to_ini(const GameState *state)
     int saw_gamepad_look_speed = 0;
     int saw_run_default = 0;
     int saw_hud_bars = 0;
+    int saw_run_speed = 0;
     int ok = 1;
 
     if (!state) return;
@@ -369,7 +381,8 @@ static void settings_save_menu_options_to_ini(const GameState *state)
                                                   &saw_crosshair,
                                                   &saw_gamepad_look_speed,
                                                   &saw_run_default,
-                                                  &saw_hud_bars)) {
+                                                  &saw_hud_bars,
+                                                  &saw_run_speed)) {
                 ok = 0;
                 break;
             }
@@ -387,7 +400,8 @@ static void settings_save_menu_options_to_ini(const GameState *state)
                                                   saw_crosshair,
                                                   saw_gamepad_look_speed,
                                                   saw_run_default,
-                                                  saw_hud_bars);
+                                                  saw_hud_bars,
+                                                  saw_run_speed);
     }
     if (fclose(out) != 0) ok = 0;
 
@@ -449,6 +463,12 @@ static void settings_apply_persistent_menu_options(GameState *state)
         if (speed >= 25 && speed <= 800) {
             state->cfg_gamepad_look_speed = (int16_t)speed;
         }
+    }
+    {
+        int speed = settings_web_local_storage_get_int(
+            SETTINGS_WEB_RUN_SPEED_KEY, state->cfg_run_speed);
+        if (speed >= RUN_SPEED_PERCENT_MIN && speed <= RUN_SPEED_PERCENT_MAX)
+            state->cfg_run_speed = (int16_t)speed;
     }
     state->cfg_hud_bars =
         settings_web_local_storage_get_int(
@@ -568,6 +588,12 @@ static void apply_line(GameState *state, char *line)
     } else if (strcmp(key, "marine_hitscan_projectiles") == 0 ||
                strcmp(key, "marine_projectiles") == 0) {
         state->cfg_marine_hitscan_projectiles = parse_bool(val) ? true : false;
+    } else if (strcmp(key, "run_speed") == 0) {
+        int n = atoi(val);
+        if (n >= RUN_SPEED_PERCENT_MIN && n <= RUN_SPEED_PERCENT_MAX)
+            state->cfg_run_speed = (int16_t)n;
+        else
+            printf("[SETTINGS] run_speed ignored (use 50..200): %s\n", val);
     } else if (strcmp(key, "hud_bars") == 0) {
         state->cfg_hud_bars = parse_bool(val) ? true : false;
     } else if (strcmp(key, "run_default") == 0 ||
@@ -678,6 +704,10 @@ static void apply_runtime_constraints(GameState *state)
         state->cfg_volume = 0;
     else if (state->cfg_volume > 100)
         state->cfg_volume = 100;
+    if (state->cfg_run_speed < RUN_SPEED_PERCENT_MIN)
+        state->cfg_run_speed = RUN_SPEED_PERCENT_MIN;
+    else if (state->cfg_run_speed > RUN_SPEED_PERCENT_MAX)
+        state->cfg_run_speed = RUN_SPEED_PERCENT_MAX;
     if (state->cfg_gamepad_look_speed < 25)
         state->cfg_gamepad_look_speed = 25;
     else if (state->cfg_gamepad_look_speed > 800)
@@ -688,7 +718,7 @@ static void apply_runtime_constraints(GameState *state)
 static void log_effective_settings(const GameState *state, const char *source_label)
 {
     if (state->cfg_start_level >= 0) {
-        printf("[SETTINGS] %s: start_level=%d infinite_health=%d infinite_ammo=%d all_weapons=%d flamethrower_weapon=%d all_keys=%d mouse_look=%d mouse_look_invert_y=%d gamepad_look_speed=%d quicksave_load=%d marine_hitscan_projectiles=%d run_default=%d footsteps_water_only=%d crosshair=%d display_mode=%s render=%dx%d supersampling=%d render_threads=%d render_threads_max=%d volume=%d audio_buffer_samples=%d y_proj_scale=%d billboard_sprite_rendering_enhancement=%d weapon_draw=%d post_tint=%d weapon_post_gl=%d show_fps=%d\n",
+        printf("[SETTINGS] %s: start_level=%d infinite_health=%d infinite_ammo=%d all_weapons=%d flamethrower_weapon=%d all_keys=%d mouse_look=%d mouse_look_invert_y=%d gamepad_look_speed=%d quicksave_load=%d marine_hitscan_projectiles=%d run_default=%d run_speed=%d footsteps_water_only=%d crosshair=%d display_mode=%s render=%dx%d supersampling=%d render_threads=%d render_threads_max=%d volume=%d audio_buffer_samples=%d y_proj_scale=%d billboard_sprite_rendering_enhancement=%d weapon_draw=%d post_tint=%d weapon_post_gl=%d show_fps=%d\n",
                source_label,
                (int)state->cfg_start_level + 1,
                state->infinite_health ? 1 : 0,
@@ -702,6 +732,7 @@ static void log_effective_settings(const GameState *state, const char *source_la
                state->cfg_quicksave_load ? 1 : 0,
                state->cfg_marine_hitscan_projectiles ? 1 : 0,
                state->cfg_run_default ? 1 : 0,
+               (int)state->cfg_run_speed,
                state->cfg_footsteps_water_only ? 1 : 0,
                (int)state->cfg_crosshair_colour,
                display_mode_to_text(state->cfg_display_mode),
@@ -719,7 +750,7 @@ static void log_effective_settings(const GameState *state, const char *source_la
                state->cfg_weapon_post_gl ? 1 : 0,
                state->cfg_show_fps ? 1 : 0);
     } else {
-         printf("[SETTINGS] %s: start_level=0 infinite_health=%d infinite_ammo=%d all_weapons=%d flamethrower_weapon=%d all_keys=%d mouse_look=%d mouse_look_invert_y=%d gamepad_look_speed=%d quicksave_load=%d marine_hitscan_projectiles=%d run_default=%d footsteps_water_only=%d crosshair=%d display_mode=%s render=%dx%d supersampling=%d render_threads=%d render_threads_max=%d volume=%d audio_buffer_samples=%d y_proj_scale=%d billboard_sprite_rendering_enhancement=%d weapon_draw=%d post_tint=%d weapon_post_gl=%d show_fps=%d\n",
+         printf("[SETTINGS] %s: start_level=0 infinite_health=%d infinite_ammo=%d all_weapons=%d flamethrower_weapon=%d all_keys=%d mouse_look=%d mouse_look_invert_y=%d gamepad_look_speed=%d quicksave_load=%d marine_hitscan_projectiles=%d run_default=%d run_speed=%d footsteps_water_only=%d crosshair=%d display_mode=%s render=%dx%d supersampling=%d render_threads=%d render_threads_max=%d volume=%d audio_buffer_samples=%d y_proj_scale=%d billboard_sprite_rendering_enhancement=%d weapon_draw=%d post_tint=%d weapon_post_gl=%d show_fps=%d\n",
                source_label,
                state->infinite_health ? 1 : 0,
                state->infinite_ammo ? 1 : 0,
@@ -732,6 +763,7 @@ static void log_effective_settings(const GameState *state, const char *source_la
                state->cfg_quicksave_load ? 1 : 0,
                state->cfg_marine_hitscan_projectiles ? 1 : 0,
                state->cfg_run_default ? 1 : 0,
+               (int)state->cfg_run_speed,
                state->cfg_footsteps_water_only ? 1 : 0,
                (int)state->cfg_crosshair_colour,
                display_mode_to_text(state->cfg_display_mode),
@@ -852,6 +884,9 @@ void settings_save_menu_options(const GameState *state)
         !settings_web_local_storage_set_int(
             SETTINGS_WEB_GAMEPAD_LOOK_SPEED_KEY,
             (int)state->cfg_gamepad_look_speed) ||
+        !settings_web_local_storage_set_int(
+            SETTINGS_WEB_RUN_SPEED_KEY,
+            (int)state->cfg_run_speed) ||
         !settings_web_local_storage_set_int(
             SETTINGS_WEB_RUN_DEFAULT_KEY,
             state->cfg_run_default ? 1 : 0) ||

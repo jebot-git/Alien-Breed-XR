@@ -69,6 +69,7 @@ enum {
     INGAME_OPTIONS_MENU_CROSSHAIR,
     INGAME_OPTIONS_MENU_GAMEPAD_TURN,
     INGAME_OPTIONS_MENU_RUN_DEFAULT,
+    INGAME_OPTIONS_MENU_RUN_SPEED,
     INGAME_OPTIONS_MENU_FPS_COUNTER,
     INGAME_OPTIONS_MENU_VOLUME,
     INGAME_OPTIONS_MENU_HUD_STYLE,
@@ -741,6 +742,33 @@ static void game_loop_adjust_gamepad_turn_speed(GameState *state,
     game_loop_draw_ingame_menu(state, ctx);
 }
 
+static void game_loop_adjust_run_speed(GameState *state,
+                                       GameLoopCtx *ctx,
+                                       int delta,
+                                       int wrap)
+{
+    int speed;
+    if (!state || !ctx || delta == 0) return;
+    speed = (int)state->cfg_run_speed + delta;
+    if (wrap) {
+        if (speed > RUN_SPEED_PERCENT_MAX)
+            speed = RUN_SPEED_PERCENT_MIN;
+        else if (speed < RUN_SPEED_PERCENT_MIN)
+            speed = RUN_SPEED_PERCENT_MAX;
+    } else {
+        if (speed < RUN_SPEED_PERCENT_MIN)
+            speed = RUN_SPEED_PERCENT_MIN;
+        if (speed > RUN_SPEED_PERCENT_MAX)
+            speed = RUN_SPEED_PERCENT_MAX;
+    }
+    if (speed == (int)state->cfg_run_speed) return;
+    state->cfg_run_speed = (int16_t)speed;
+    settings_save_menu_options(state);
+    game_loop_play_menu_accept_sound(state);
+    game_loop_pause_timing(state, ctx);
+    game_loop_draw_ingame_menu(state, ctx);
+}
+
 static void game_loop_present_menu(GameState *state, const GameLoopCtx *ctx)
 {
     if (ctx && ctx->ingame_menu_frontend) {
@@ -847,27 +875,33 @@ static void game_loop_draw_ingame_menu(GameState *state, const GameLoopCtx *ctx)
                  (state && state->cfg_run_default) ? "ON" : "OFF");
         display_draw_line_of_text(line, 6);
 
+        snprintf(line, sizeof(line), "%c RUN SPEED    : %3d%%",
+                 (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_RUN_SPEED) ?
+                 '>' : ' ',
+                 state ? (int)state->cfg_run_speed : RUN_SPEED_PERCENT_DEFAULT);
+        display_draw_line_of_text(line, 7);
+
         snprintf(line, sizeof(line), "%c FPS COUNTER  : %s",
                  (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_FPS_COUNTER) ?
                  '>' : ' ',
                  (state && state->cfg_show_fps) ? "ON" : "OFF");
-        display_draw_line_of_text(line, 7);
+        display_draw_line_of_text(line, 8);
 
         snprintf(line, sizeof(line), "%c VOLUME       : %3d%%",
                  (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_VOLUME) ?
                  '>' : ' ',
                  state ? (int)state->cfg_volume : 100);
-        display_draw_line_of_text(line, 8);
+        display_draw_line_of_text(line, 9);
 
         snprintf(line, sizeof(line), "%c HUD          : %s",
                  (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_HUD_STYLE) ?
                  '>' : ' ',
                  (!state || state->cfg_hud_bars) ? "BARS" : "NUMBERS");
-        display_draw_line_of_text(line, 9);
+        display_draw_line_of_text(line, 10);
 
         display_draw_line_of_text(
             (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_BACK) ?
-            "> BACK" : "  BACK", 10);
+            "> BACK" : "  BACK", 11);
         game_loop_present_menu(state, ctx);
         return;
     }
@@ -1074,6 +1108,10 @@ static void game_loop_select_options_menu_item(GameState *state, GameLoopCtx *ct
         }
         settings_save_menu_options(state);
         break;
+
+    case INGAME_OPTIONS_MENU_RUN_SPEED:
+        game_loop_adjust_run_speed(state, ctx, RUN_SPEED_PERCENT_STEP, 1);
+        return;
 
     case INGAME_OPTIONS_MENU_RUN_DEFAULT:
         state->cfg_run_default = !state->cfg_run_default;
@@ -1314,6 +1352,14 @@ static int game_loop_update_ingame_menu(GameState *state, GameLoopCtx *ctx)
             if (menu_right) delta += 1;
             if (delta != 0)
                 game_loop_adjust_crosshair(state, ctx, delta);
+            game_loop_clear_queued_actions();
+            return 1;
+
+        case INGAME_OPTIONS_MENU_RUN_SPEED:
+            if (menu_left) delta -= RUN_SPEED_PERCENT_STEP;
+            if (menu_right) delta += RUN_SPEED_PERCENT_STEP;
+            if (delta != 0)
+                game_loop_adjust_run_speed(state, ctx, delta, 0);
             game_loop_clear_queued_actions();
             return 1;
 

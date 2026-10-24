@@ -17,6 +17,10 @@
 #define MAX_OBJECTS 250
 #define PLAYER_SHOT_SLOT_COUNT 20
 #define NASTY_SHOT_SLOT_COUNT  100
+#define RUN_SPEED_PERCENT_MIN 50
+#define RUN_SPEED_PERCENT_MAX 200
+#define RUN_SPEED_PERCENT_DEFAULT 130
+#define RUN_SPEED_PERCENT_STEP 10
 
 /* -----------------------------------------------------------------------
  * Player state
@@ -391,6 +395,8 @@ typedef struct {
     int16_t         enemy_burn_particle_timer[MAX_OBJECTS];
 
     bool            cfg_hud_bars; /* Options HUD: bars (default) or previous numbers. */
+    /* Append preferences so earlier full-save GameState fields keep their offsets. */
+    int16_t         cfg_run_speed; /* Percentage of original Amiga running speed. */
 
 } GameState;
 

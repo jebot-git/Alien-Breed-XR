@@ -15,6 +15,35 @@ static double tone(int rate, int hz, int submerged) {
     return sqrt(energy/(n-rate/10-1));
 }
 int main(void) {
+    /* SoundPlayer.s MakeSomeNoise, Noisevol=200 (Anims.s ItsAGasPipe). */
+    assert(audio_distance_volume(200,0,0)==255);
+    assert(audio_distance_volume(200,800,0)==251);
+    assert(audio_distance_volume(200,1600,0)==123);
+    assert(audio_distance_volume(200,3200,0)==59);
+    assert(audio_distance_volume(200,0,-3200)==59);
+    assert(audio_distance_volume(200,60000,0)==0);
+    assert(audio_distance_volume(0,0,0)==0);
+    /* The original two-iteration sqrt has small quantization jumps at its
+     * seed boundaries; compare clearly separated listener distances. */
+    for(int distance=800;distance<16000;distance*=2) {
+        assert(audio_distance_volume(200,distance,0)>=
+               audio_distance_volume(200,distance*2,0));
+    }
+    static Uint8 sample[100];
+    g_samples[22].data=sample; g_samples[22].length=sizeof(sample);
+    for(int nearer_first=0;nearer_first<2;nearer_first++) {
+        memset(g_channels,0,sizeof(g_channels));
+        audio_begin_frame();
+        audio_queue_sample(22,nearer_first?251:59);
+        g_channels[0].position=12;
+        audio_queue_sample(22,nearer_first?59:251);
+        assert(g_channels[0].volume==251 && g_channels[0].position==12);
+        assert(channel_is_free(&g_channels[1]));
+        audio_begin_frame();
+        audio_queue_sample(22,59);
+        assert(g_channels[1].volume==59 && g_channels[1].position==0);
+    }
+    puts("PASS: original fire-spout distance curve; simultaneous emitters keep loudest burst without restarting");
     int rates[]={8007,48000};
     for(int r=0;r<2;r++) {
         int rate=rates[r];

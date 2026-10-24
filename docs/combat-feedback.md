@@ -40,6 +40,17 @@ The six requested changes are implemented in the PC and web paths:
 
 No replacement gameplay rules or placeholder effects were introduced.
 
+A follow-up to the level 15 worm report found that targeting used the previous
+tick's position/aim. `AB3DI.s` refreshes `CalcPLR1InLine` / `CalcPLR2InLine`
+after player control, before `Anims.s` invokes `Player1Shot` / `Player2Shot`.
+The port had refreshed only after object movement. The public shooting entry
+points now refresh immediately before selecting a target. Turning/strafing onto
+a worm can hit on that tick; turning/strafing away no longer damages a target
+from the stale list. This also corrects controller projectile auto-aim when the
+old cached distance was zero. Level 15 (`level_o/twolev.bin`) contains 13 worms
+with authored health 80. Their original `HalfWorm.s` quarter-damage rule and
+the previously requested run-speed boost are preserved.
+
 Validation: Windows Release and single-threaded Emscripten Release builds;
 focused movement and audio checks using the production C routines; browser
 level smoke checks through both the OpenGL and SDL display paths, with no
@@ -60,3 +71,7 @@ and entering/leaving water.
 HUD checks cover bottom alignment, monotonic fill, empty/full values and a
 visible last health/ammo unit at small sizes. Browser pixel comparisons at
 160x120, 320x200, 640x480 and 1280x720 pass through both GL and SDL paths.
+Shooting checks cover 40 cases: both players, mouse/fixed-view pistol and
+shotgun, and controller plasma auto-aim, each turning/strafing into and out
+of a worm target. The turn-onto-target case failed before the cache fix
+(zero damage, ammo consumed) and passes afterward.

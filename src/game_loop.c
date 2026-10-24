@@ -1664,13 +1664,6 @@ void game_loop_tick(GameState *state, GameLoopCtx *ctx)
             objects_update(state);
             explosion_advance(state);
 
-            /* Match Amiga frame timing: in-line target vectors are refreshed
-             * after object movement/AI for use by the next shot solve. */
-            calc_plr1_in_line(state);
-            if (state->mode != MODE_SINGLE) {
-                calc_plr2_in_line(state);
-            }
-
             /* ---- Phase 15: Object worry flags ---- */
             if (state->level.object_data) {
                 uint8_t vis_zones[256];

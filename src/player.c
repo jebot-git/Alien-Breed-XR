@@ -4305,10 +4305,14 @@ static void player_shoot_internal(GameState *state, PlayerState *plr,
 
 void player1_shoot(GameState *state)
 {
+    /* AB3DI.s RotateObjectPts/CalcPLR1InLine run after player control and
+     * before Anims.s Player1Shot. Never fire using the previous tick's aim. */
+    calc_plr1_in_line(state);
     player_shoot_internal(state, &state->plr1, 1, default_plr1_guns);
 }
 
 void player2_shoot(GameState *state)
 {
+    calc_plr2_in_line(state);
     player_shoot_internal(state, &state->plr2, 2, default_plr2_guns);
 }

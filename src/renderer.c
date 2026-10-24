@@ -15876,8 +15876,9 @@ void renderer_draw_display(GameState *state)
     if (state && !state->cfg_post_tint)
         tint_water = 0;
 
-    /* Save tint value for the GL post-pass (read by display.c after this call). */
-    g_renderer.last_fill_screen_water = tint_water;
+    /* Keep the water state independent of cfg_post_tint: display and audio
+     * both consume it; visual tint enablement is handled by each draw path. */
+    g_renderer.last_fill_screen_water = fill_screen_water;
 
     /* 6. Underwater fillscrnwater post-pass — skipped when GL multiply handles it (or weapon GL). */
     int used_threaded_tint = 0;

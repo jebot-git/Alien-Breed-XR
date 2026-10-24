@@ -27,10 +27,12 @@ static void log_effective_settings(const GameState *state,
 
 #if defined(__EMSCRIPTEN__)
 #define SETTINGS_WEB_MOUSE_LOOK_KEY          "ab3d1.settings.mouse_look"
+#define SETTINGS_WEB_INVERT_MOUSE_KEY        "ab3d1.settings.mouse_look_invert_y"
 #define SETTINGS_WEB_SHOW_FPS_KEY            "ab3d1.settings.show_fps"
 #define SETTINGS_WEB_VOLUME_KEY              "ab3d1.settings.volume"
 #define SETTINGS_WEB_CROSSHAIR_KEY           "ab3d1.settings.crosshair"
 #define SETTINGS_WEB_GAMEPAD_LOOK_SPEED_KEY  "ab3d1.settings.gamepad_look_speed"
+#define SETTINGS_WEB_HUD_BARS_KEY            "ab3d1.settings.hud_bars"
 #define SETTINGS_WEB_RUN_DEFAULT_KEY         "ab3d1.settings.run_default"
 
 EM_JS(int, settings_web_local_storage_get_int,
@@ -182,11 +184,13 @@ static int settings_write_menu_options_line(FILE *out,
                                             const char *line,
                                             const GameState *state,
                                             int *saw_mouse_look,
+                                            int *saw_invert_mouse,
                                             int *saw_show_fps,
                                             int *saw_volume,
                                             int *saw_crosshair,
                                             int *saw_gamepad_look_speed,
-                                            int *saw_run_default)
+                                            int *saw_run_default,
+                                            int *saw_hud_bars)
 {
     char key[64];
 
@@ -198,6 +202,11 @@ static int settings_write_menu_options_line(FILE *out,
         *saw_mouse_look = 1;
         return fprintf(out, "mouse_look=%d\n",
                        state->cfg_mouse_look ? 1 : 0) >= 0;
+    }
+    if (strcmp(key, "mouse_look_invert_y") == 0) {
+        *saw_invert_mouse = 1;
+        return fprintf(out, "mouse_look_invert_y=%d\n",
+                       state->cfg_mouse_look_invert_y ? 1 : 0) >= 0;
     }
     if (strcmp(key, "show_fps") == 0 || strcmp(key, "fps_counter") == 0) {
         *saw_show_fps = 1;
@@ -225,6 +234,10 @@ static int settings_write_menu_options_line(FILE *out,
         return fprintf(out, "%s=%d\n", key,
                        (int)state->cfg_gamepad_look_speed) >= 0;
     }
+    if (strcmp(key, "hud_bars") == 0) {
+        *saw_hud_bars = 1;
+        return fprintf(out, "hud_bars=%d\n", state->cfg_hud_bars ? 1 : 0) >= 0;
+    }
     if (strcmp(key, "run_default") == 0 ||
         strcmp(key, "always_run") == 0) {
         *saw_run_default = 1;
@@ -238,19 +251,26 @@ static int settings_write_menu_options_line(FILE *out,
 static int settings_append_missing_menu_options(FILE *out,
                                                 const GameState *state,
                                                 int saw_mouse_look,
+                                                int saw_invert_mouse,
                                                 int saw_show_fps,
                                                 int saw_volume,
                                                 int saw_crosshair,
                                                 int saw_gamepad_look_speed,
-                                                int saw_run_default)
+                                                int saw_run_default,
+                                                int saw_hud_bars)
 {
-    if (saw_mouse_look && saw_show_fps && saw_volume &&
-        saw_crosshair && saw_gamepad_look_speed && saw_run_default) {
+    if (saw_mouse_look && saw_invert_mouse && saw_show_fps && saw_volume &&
+        saw_crosshair && saw_gamepad_look_speed && saw_run_default && saw_hud_bars) {
         return 1;
     }
     if (fprintf(out, "\n# Runtime menu options\n") < 0) return 0;
     if (!saw_mouse_look &&
         fprintf(out, "mouse_look=%d\n", state->cfg_mouse_look ? 1 : 0) < 0) {
+        return 0;
+    }
+    if (!saw_invert_mouse &&
+        fprintf(out, "mouse_look_invert_y=%d\n",
+                state->cfg_mouse_look_invert_y ? 1 : 0) < 0) {
         return 0;
     }
     if (!saw_show_fps &&
@@ -271,6 +291,10 @@ static int settings_append_missing_menu_options(FILE *out,
                 (int)state->cfg_gamepad_look_speed) < 0) {
         return 0;
     }
+    if (!saw_hud_bars &&
+        fprintf(out, "hud_bars=%d\n", state->cfg_hud_bars ? 1 : 0) < 0) {
+        return 0;
+    }
     if (!saw_run_default &&
         fprintf(out, "run_default=%d\n",
                 state->cfg_run_default ? 1 : 0) < 0) {
@@ -288,11 +312,13 @@ static void settings_save_menu_options_to_ini(const GameState *state)
     FILE *out = NULL;
     char line[1024];
     int saw_mouse_look = 0;
+    int saw_invert_mouse = 0;
     int saw_show_fps = 0;
     int saw_volume = 0;
     int saw_crosshair = 0;
     int saw_gamepad_look_speed = 0;
     int saw_run_default = 0;
+    int saw_hud_bars = 0;
     int ok = 1;
 
     if (!state) return;
@@ -337,11 +363,13 @@ static void settings_save_menu_options_to_ini(const GameState *state)
         while (fgets(line, sizeof(line), in)) {
             if (!settings_write_menu_options_line(out, line, state,
                                                   &saw_mouse_look,
+                                                  &saw_invert_mouse,
                                                   &saw_show_fps,
                                                   &saw_volume,
                                                   &saw_crosshair,
                                                   &saw_gamepad_look_speed,
-                                                  &saw_run_default)) {
+                                                  &saw_run_default,
+                                                  &saw_hud_bars)) {
                 ok = 0;
                 break;
             }
@@ -353,11 +381,13 @@ static void settings_save_menu_options_to_ini(const GameState *state)
     if (ok) {
         ok = settings_append_missing_menu_options(out, state,
                                                   saw_mouse_look,
+                                                  saw_invert_mouse,
                                                   saw_show_fps,
                                                   saw_volume,
                                                   saw_crosshair,
                                                   saw_gamepad_look_speed,
-                                                  saw_run_default);
+                                                  saw_run_default,
+                                                  saw_hud_bars);
     }
     if (fclose(out) != 0) ok = 0;
 
@@ -388,6 +418,10 @@ static void settings_apply_persistent_menu_options(GameState *state)
         settings_web_local_storage_get_int(
             SETTINGS_WEB_MOUSE_LOOK_KEY,
             state->cfg_mouse_look ? 1 : 0) != 0;
+    state->cfg_mouse_look_invert_y =
+        settings_web_local_storage_get_int(
+            SETTINGS_WEB_INVERT_MOUSE_KEY,
+            state->cfg_mouse_look_invert_y ? 1 : 0) != 0;
     state->cfg_show_fps =
         settings_web_local_storage_get_int(
             SETTINGS_WEB_SHOW_FPS_KEY,
@@ -416,6 +450,9 @@ static void settings_apply_persistent_menu_options(GameState *state)
             state->cfg_gamepad_look_speed = (int16_t)speed;
         }
     }
+    state->cfg_hud_bars =
+        settings_web_local_storage_get_int(
+            SETTINGS_WEB_HUD_BARS_KEY, state->cfg_hud_bars ? 1 : 0) != 0;
     state->cfg_run_default =
         settings_web_local_storage_get_int(
             SETTINGS_WEB_RUN_DEFAULT_KEY,
@@ -531,6 +568,8 @@ static void apply_line(GameState *state, char *line)
     } else if (strcmp(key, "marine_hitscan_projectiles") == 0 ||
                strcmp(key, "marine_projectiles") == 0) {
         state->cfg_marine_hitscan_projectiles = parse_bool(val) ? true : false;
+    } else if (strcmp(key, "hud_bars") == 0) {
+        state->cfg_hud_bars = parse_bool(val) ? true : false;
     } else if (strcmp(key, "run_default") == 0 ||
                strcmp(key, "always_run") == 0) {
         state->cfg_run_default = parse_bool(val) ? true : false;
@@ -799,6 +838,9 @@ void settings_save_menu_options(const GameState *state)
             SETTINGS_WEB_MOUSE_LOOK_KEY,
             state->cfg_mouse_look ? 1 : 0) ||
         !settings_web_local_storage_set_int(
+            SETTINGS_WEB_INVERT_MOUSE_KEY,
+            state->cfg_mouse_look_invert_y ? 1 : 0) ||
+        !settings_web_local_storage_set_int(
             SETTINGS_WEB_SHOW_FPS_KEY,
             state->cfg_show_fps ? 1 : 0) ||
         !settings_web_local_storage_set_int(
@@ -812,7 +854,10 @@ void settings_save_menu_options(const GameState *state)
             (int)state->cfg_gamepad_look_speed) ||
         !settings_web_local_storage_set_int(
             SETTINGS_WEB_RUN_DEFAULT_KEY,
-            state->cfg_run_default ? 1 : 0)) {
+            state->cfg_run_default ? 1 : 0) ||
+        !settings_web_local_storage_set_int(
+            SETTINGS_WEB_HUD_BARS_KEY,
+            state->cfg_hud_bars ? 1 : 0)) {
         printf("[SETTINGS] menu options localStorage save failed\n");
     }
 #else

@@ -58,10 +58,6 @@ void display_wait_vblank(void);
 void display_set_screen_tint(int r, int g, int b, int alpha);
 void display_clear_screen_tint(void);
 
-/* HUD */
-void display_energy_bar(int16_t energy);
-void display_ammo_bar(int16_t ammo);
-
 /* Text */
 void display_draw_line_of_text(const char *text, int line);
 void display_draw_line_of_text_alpha(const char *text, int line, int alpha);

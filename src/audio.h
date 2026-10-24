@@ -13,6 +13,8 @@ void audio_init(void);
 void audio_shutdown(void);
 /* Master SFX gain from ab3d.ini (0 = mute, 100 = full). Call after settings_load, typically right after audio_init. */
 void audio_set_master_volume(int volume_0_to_100);
+/* Amiga AB3DI.s fillscrnwater toggles the filter for both water states. */
+void audio_set_underwater(int underwater);
 
 /* Music (tracker module rendered to WAV) */
 typedef void (*audio_blocking_tick_fn)(float progress_0_to_1, void *userdata);

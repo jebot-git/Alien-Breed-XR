@@ -390,6 +390,8 @@ typedef struct {
     int16_t         enemy_burn_damage_accum[MAX_OBJECTS];
     int16_t         enemy_burn_particle_timer[MAX_OBJECTS];
 
+    bool            cfg_hud_bars; /* Options HUD: bars (default) or previous numbers. */
+
 } GameState;
 
 /* -----------------------------------------------------------------------

@@ -46,9 +46,22 @@ GAME / UI
 - Tab: Toggle automap
 - Page Up / Page Down: Automap zoom in/out
 - Esc: Open the in-game menu; also releases mouse capture when captured
+- Options: Invert Mouse toggles vertical mouse-look inversion and saves the setting.
+- Options: HUD switches between BARS (default) and the previous NUMBERS display.
 - Autosaves: Load from the Autosaves menu
 - F5/F9: Quick save/load only when quicksave_load=1 is enabled in ab3d.ini
 - F6: Toggle Gouraud visualize mode
+
+COMBAT / HUD
+- Normal mutant rifles use original instant-hit attacks by default. Set
+  marine_hitscan_projectiles=1 in ab3d.ini to enable the optional orange shots.
+- Taking damage flashes the view red; repeated hits refresh the pulse.
+- Collected keys are opaque and underlined; missing keys are faint.
+- Compact translucent vertical health (left) and ammo (right) bars replace the
+  numbers, using the original green/yellow/red palette.
+  Ammo uses the original bar scale (full at 63 displayed rounds).
+- Water enables a software low-pass audio filter, including with post_tint=0.
+- Running is 30% faster than the previous port speed; walking is unchanged.
 
 MOUSE CAPTURE
 - The mouse pointer is visible until you left-click inside the game window to capture it (windowed or fullscreen).

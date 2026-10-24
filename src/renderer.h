@@ -431,6 +431,7 @@ void renderer_draw_gun(GameState *state);
  * via a GL multiply quad (avoids a full-buffer CPU pass each frame). */
 void renderer_set_weapon_post_gl_active(int active);
 void renderer_set_gl_water_tint_post_active(int active);
+/* Raw water state, including when cfg_post_tint is disabled. */
 int8_t renderer_get_last_fill_screen_water(void);
 /* Fill *out_frame_slot (0-31), *out_ix/iy/iw/ih (internal render pixel rect,
  * no aspect pre-correction).  Returns 1 if a gun should be drawn, 0 otherwise. */

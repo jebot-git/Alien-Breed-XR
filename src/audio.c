@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "logging.h"
 #include "game_state.h"
 #define printf ab3d_log_printf
@@ -116,6 +117,49 @@ static Channel           g_channels[MAX_CHANNELS];
 static MusicTrack        g_music;
 static int               g_audio_ready = 0;
 static int               g_master_volume = 100; /* 0..100, scales music and SFX playback */
+/* Software replacement for AB3DI.s oknothalf/nowaterfull's CIA filter switch.
+ * Two-pole Butterworth, 3 kHz: an audible Amiga-style low-pass, not a
+ * cycle-exact model of the analog circuit. All state is audio-device locked. */
+static int g_underwater;
+static float g_filter_b0, g_filter_b1, g_filter_b2, g_filter_a1, g_filter_a2;
+static float g_filter_z1, g_filter_z2, g_filter_wet;
+
+static void audio_filter_init(void)
+{
+    /* The device is opened with no format changes: signed 16-bit mono. */
+    float k = tanf(3.14159265358979323846f * 3000.0f / (float)g_spec.freq);
+    float norm = 1.0f / (1.0f + 1.41421356237f * k + k * k);
+    g_filter_b0 = k * k * norm;
+    g_filter_b1 = 2.0f * g_filter_b0;
+    g_filter_b2 = g_filter_b0;
+    g_filter_a1 = 2.0f * (k * k - 1.0f) * norm;
+    g_filter_a2 = (1.0f - 1.41421356237f * k + k * k) * norm;
+    g_underwater = 0;
+    g_filter_z1 = g_filter_z2 = g_filter_wet = 0.0f;
+}
+
+static void audio_filter_output(Uint8 *stream, int len)
+{
+    Sint16 *samples = (Sint16 *)stream;
+    const float ramp = 1.0f / (0.020f * (float)g_spec.freq);
+    for (int i = 0; i < len / (int)sizeof(*samples); i++) {
+        float dry = (float)samples[i];
+        float filtered = g_filter_b0 * dry + g_filter_z1;
+        g_filter_z1 = g_filter_b1 * dry - g_filter_a1 * filtered + g_filter_z2;
+        g_filter_z2 = g_filter_b2 * dry - g_filter_a2 * filtered;
+        if (g_underwater) {
+            g_filter_wet += ramp;
+            if (g_filter_wet > 1.0f) g_filter_wet = 1.0f;
+        } else {
+            g_filter_wet -= ramp;
+            if (g_filter_wet < 0.0f) g_filter_wet = 0.0f;
+        }
+        float out = dry + (filtered - dry) * g_filter_wet;
+        if (out > 32767.0f) out = 32767.0f;
+        if (out < -32768.0f) out = -32768.0f;
+        samples[i] = (Sint16)out;
+    }
+}
 /* Per-game-frame SFX dedupe:
  * g_sfx_frame_id is advanced by audio_begin_frame() once per logic tick.
  * A sample can be queued at most once for each frame id. */
@@ -254,6 +298,7 @@ static void audio_callback(void *userdata, Uint8 *stream, int len)
             ch->sample_id = -1;
         }
     }
+    audio_filter_output(stream, len);
 }
 
 /* Lowercase the filename part of path in place (from last '/' or '\\' to end). */
@@ -538,6 +583,8 @@ void audio_init(void)
         return;
     }
 
+    audio_filter_init();
+
     printf("[AUDIO] opened device: freq=%d format=0x%x channels=%u samples=%u (requested freq=%d samples=%d)\n",
            g_spec.freq, (unsigned)g_spec.format, (unsigned)g_spec.channels, (unsigned)g_spec.samples,
            want.freq, desired_samples);
@@ -570,6 +617,14 @@ void audio_init(void)
                 loaded_count, NUM_NAMED_SFX);
         exit(1);
     }
+}
+
+void audio_set_underwater(int underwater)
+{
+    if (!g_device) return;
+    SDL_LockAudioDevice(g_device);
+    g_underwater = underwater != 0;
+    SDL_UnlockAudioDevice(g_device);
 }
 
 void audio_set_master_volume(int volume_0_to_100)
@@ -879,6 +934,8 @@ void audio_stop_all(void)
 {
     if (!g_audio_ready || g_device == 0) return;
     SDL_LockAudioDevice(g_device);
+    g_underwater = 0;
+    g_filter_z1 = g_filter_z2 = g_filter_wet = 0.0f;
     for (int c = 0; c < MAX_CHANNELS; c++) {
         g_channels[c].sample_data = NULL;
         g_channels[c].position = 0;
@@ -903,6 +960,7 @@ void audio_mt_end(void)
 {
     if (!g_audio_ready || g_device == 0) return;
     SDL_LockAudioDevice(g_device);
+    g_underwater = 0;
     if (g_music.playing) {
         music_stop_locked();
         SDL_UnlockAudioDevice(g_device);

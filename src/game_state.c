@@ -105,10 +105,11 @@ void game_state_init(GameState *state)
     state->cfg_weapon_post_gl = false;
     state->cfg_crosshair_colour = 0;
     state->cfg_run_default = true;
+    state->cfg_hud_bars = true;
     state->plr1_clumptime = 0;
     state->plr2_clumptime = 0;
     state->cfg_footsteps_water_only = false;
-    state->cfg_marine_hitscan_projectiles = true;
+    state->cfg_marine_hitscan_projectiles = false;
     state->cfg_flamethrower_weapon = true;
     game_state_reset_flamethrower_recharge(state);
     game_state_reset_enemy_burning(state);

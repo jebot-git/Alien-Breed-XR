@@ -63,14 +63,18 @@
 
 #define INGAME_MENU_AUTOSAVE_BACK PLAYER_AUTOSAVE_SLOT_COUNT
 
-#define INGAME_OPTIONS_MENU_MOUSE_LOOK   0
-#define INGAME_OPTIONS_MENU_CROSSHAIR    1
-#define INGAME_OPTIONS_MENU_GAMEPAD_TURN 2
-#define INGAME_OPTIONS_MENU_RUN_DEFAULT  3
-#define INGAME_OPTIONS_MENU_FPS_COUNTER  4
-#define INGAME_OPTIONS_MENU_VOLUME       5
-#define INGAME_OPTIONS_MENU_BACK         6
-#define INGAME_OPTIONS_MENU_COUNT        7
+enum {
+    INGAME_OPTIONS_MENU_MOUSE_LOOK,
+    INGAME_OPTIONS_MENU_INVERT_MOUSE,
+    INGAME_OPTIONS_MENU_CROSSHAIR,
+    INGAME_OPTIONS_MENU_GAMEPAD_TURN,
+    INGAME_OPTIONS_MENU_RUN_DEFAULT,
+    INGAME_OPTIONS_MENU_FPS_COUNTER,
+    INGAME_OPTIONS_MENU_VOLUME,
+    INGAME_OPTIONS_MENU_HUD_STYLE,
+    INGAME_OPTIONS_MENU_BACK,
+    INGAME_OPTIONS_MENU_COUNT
+};
 
 #define INGAME_MENU_CONFIRM_YES   0
 #define INGAME_MENU_CONFIRM_NO    1
@@ -537,14 +541,8 @@ static int game_loop_move_options_menu_selection(GameLoopCtx *ctx, int step)
 
 static int game_loop_options_menu_item_at_line(int line)
 {
-    if (line == 2) return INGAME_OPTIONS_MENU_MOUSE_LOOK;
-    if (line == 3) return INGAME_OPTIONS_MENU_CROSSHAIR;
-    if (line == 4) return INGAME_OPTIONS_MENU_GAMEPAD_TURN;
-    if (line == 5) return INGAME_OPTIONS_MENU_RUN_DEFAULT;
-    if (line == 6) return INGAME_OPTIONS_MENU_FPS_COUNTER;
-    if (line == 7) return INGAME_OPTIONS_MENU_VOLUME;
-    if (line == 8) return INGAME_OPTIONS_MENU_BACK;
-    return -1;
+    int item = line - 2;
+    return game_loop_options_menu_item_enabled(item) ? item : -1;
 }
 
 static int game_loop_menu_item_at_line(const GameLoopCtx *ctx, int line)
@@ -824,40 +822,52 @@ static void game_loop_draw_ingame_menu(GameState *state, const GameLoopCtx *ctx)
                  (state && state->cfg_mouse_look) ? "ON" : "OFF");
         display_draw_line_of_text(line, 2);
 
+        snprintf(line, sizeof(line), "%c INVERT MOUSE : %s",
+                 (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_INVERT_MOUSE) ?
+                 '>' : ' ',
+                 (state && state->cfg_mouse_look_invert_y) ? "ON" : "OFF");
+        display_draw_line_of_text(line, 3);
+
         snprintf(line, sizeof(line), "%c CROSSHAIR    : %s",
                  (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_CROSSHAIR) ?
                  '>' : ' ',
                  state ? game_loop_crosshair_label(state->cfg_crosshair_colour) :
                  "OFF");
-        display_draw_line_of_text(line, 3);
+        display_draw_line_of_text(line, 4);
 
         snprintf(line, sizeof(line), "%c GAMEPAD TURN : %3d%%",
                  (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_GAMEPAD_TURN) ?
                  '>' : ' ',
                  state ? (int)state->cfg_gamepad_look_speed : 100);
-        display_draw_line_of_text(line, 4);
+        display_draw_line_of_text(line, 5);
 
         snprintf(line, sizeof(line), "%c RUN DEFAULT  : %s",
                  (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_RUN_DEFAULT) ?
                  '>' : ' ',
                  (state && state->cfg_run_default) ? "ON" : "OFF");
-        display_draw_line_of_text(line, 5);
+        display_draw_line_of_text(line, 6);
 
         snprintf(line, sizeof(line), "%c FPS COUNTER  : %s",
                  (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_FPS_COUNTER) ?
                  '>' : ' ',
                  (state && state->cfg_show_fps) ? "ON" : "OFF");
-        display_draw_line_of_text(line, 6);
+        display_draw_line_of_text(line, 7);
 
         snprintf(line, sizeof(line), "%c VOLUME       : %3d%%",
                  (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_VOLUME) ?
                  '>' : ' ',
                  state ? (int)state->cfg_volume : 100);
-        display_draw_line_of_text(line, 7);
+        display_draw_line_of_text(line, 8);
+
+        snprintf(line, sizeof(line), "%c HUD          : %s",
+                 (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_HUD_STYLE) ?
+                 '>' : ' ',
+                 (!state || state->cfg_hud_bars) ? "BARS" : "NUMBERS");
+        display_draw_line_of_text(line, 9);
 
         display_draw_line_of_text(
             (ctx->ingame_menu_selected == INGAME_OPTIONS_MENU_BACK) ?
-            "> BACK" : "  BACK", 8);
+            "> BACK" : "  BACK", 10);
         game_loop_present_menu(state, ctx);
         return;
     }
@@ -1043,6 +1053,11 @@ static void game_loop_select_options_menu_item(GameState *state, GameLoopCtx *ct
         settings_save_menu_options(state);
         break;
 
+    case INGAME_OPTIONS_MENU_INVERT_MOUSE:
+        state->cfg_mouse_look_invert_y = !state->cfg_mouse_look_invert_y;
+        settings_save_menu_options(state);
+        break;
+
     case INGAME_OPTIONS_MENU_CROSSHAIR:
         state->cfg_crosshair_colour =
             (uint8_t)(((int)(state->cfg_crosshair_colour & 7u) + 1) & 7);
@@ -1062,6 +1077,11 @@ static void game_loop_select_options_menu_item(GameState *state, GameLoopCtx *ct
 
     case INGAME_OPTIONS_MENU_RUN_DEFAULT:
         state->cfg_run_default = !state->cfg_run_default;
+        settings_save_menu_options(state);
+        break;
+
+    case INGAME_OPTIONS_MENU_HUD_STYLE:
+        state->cfg_hud_bars = !state->cfg_hud_bars;
         settings_save_menu_options(state);
         break;
 
@@ -1284,6 +1304,11 @@ static int game_loop_update_ingame_menu(GameState *state, GameLoopCtx *ctx)
         (menu_left || menu_right)) {
         int delta = 0;
         switch (ctx->ingame_menu_selected) {
+        case INGAME_OPTIONS_MENU_HUD_STYLE:
+            game_loop_select_options_menu_item(state, ctx);
+            game_loop_clear_queued_actions();
+            return 1;
+
         case INGAME_OPTIONS_MENU_CROSSHAIR:
             if (menu_left) delta -= 1;
             if (menu_right) delta += 1;
@@ -1510,8 +1535,12 @@ void game_loop_tick(GameState *state, GameLoopCtx *ctx)
 
             /* ---- Phase 3: Hit flash fadedown ---- */
             if (state->hitcol > 0) {
-                state->hitcol -= 0x100;
-                state->hitcol2 = state->hitcol;
+                state->hitcol -= ticks * 0x100;
+                if (state->hitcol < 0) state->hitcol = 0;
+            }
+            if (state->hitcol2 > 0) {
+                state->hitcol2 -= ticks * 0x100;
+                if (state->hitcol2 < 0) state->hitcol2 = 0;
             }
 
             /* ---- Phase 3b: Gun animation frame countdown ---- */
@@ -1704,14 +1733,13 @@ void game_loop_tick(GameState *state, GameLoopCtx *ctx)
         if (f2_pick_log_requested) {
             renderer_request_center_pick_capture();
         }
-        display_energy_bar(state->energy);
-        display_ammo_bar(state->ammo);
         bool hidden_start_frame = (ctx->hidden_present_frames > 0);
         if (hidden_start_frame) {
             display_suppress_next_present();
             ctx->hidden_present_frames--;
         }
         display_draw_display(state);
+        audio_set_underwater(renderer_get_last_fill_screen_water() != 0);
         if (hidden_start_frame && ctx->hidden_present_frames <= 0) {
             game_loop_pause_timing(state, ctx);
         }

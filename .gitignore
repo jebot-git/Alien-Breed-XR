@@ -1,5 +1,7 @@
 
 *.o
+__pycache__/
+*.pyc
 build
 build-web
 build-native-test

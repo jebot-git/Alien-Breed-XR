@@ -18,6 +18,7 @@
 #include "display.h"
 #include "renderer.h"
 #include "game_data.h"
+#include "io.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
 /* SDL_GL_BindTexture / glGenerateMipmap: framebuffer minification when window < internal size */
@@ -191,6 +192,7 @@ static int g_texture_is_4444_direct = 0;
 /* Key HUD: one SDL texture per key sprite frame 0..3 (invalidated when level/assets change). */
 static SDL_Texture *g_key_hud_tex[4];
 static uintptr_t    g_key_hud_tex_tag;
+static SDL_Texture *g_bar_hud_tex[2];
 static void display_key_hud_free_textures(void);
 
 /* HUD digit strips: 0 = health %, 1 = ammo count (fonts, e.g. health_digits.png). */
@@ -3338,6 +3340,10 @@ void display_shutdown(void)
 {
     display_hud_digits_free();
     display_key_hud_free_textures();
+    for (int i = 0; i < 2; i++) {
+        if (g_bar_hud_tex[i]) SDL_DestroyTexture(g_bar_hud_tex[i]);
+        g_bar_hud_tex[i] = NULL;
+    }
     display_ascii_font_free();
     display_title_screen_free();
     display_gl_lines_release_scratch();
@@ -4078,7 +4084,7 @@ static void display_crosshair_sdl_overlay(const GameState *state)
     }
 }
 
-static void display_hud_stats_sdl_overlay(const GameState *state)
+static void display_hud_numbers_sdl_overlay(const GameState *state)
 {
     if (!state || !g_sdl_ren) return;
 
@@ -4099,7 +4105,7 @@ static void display_hud_stats_sdl_overlay(const GameState *state)
     if (hp_pct < 0) hp_pct = 0;
     if (hp_pct > 100) hp_pct = 100;
 
-    /* Raw ammo count (same scale as display_ammo_bar); cap HUD at MAX_AMMO_RAW. */
+    /* Previous numeric HUD: health percent and displayed ammo count. */
     int ammo_count;
     if (state->infinite_ammo) {
         ammo_count = (int)MAX_AMMO_RAW;
@@ -4158,6 +4164,118 @@ static void display_hud_stats_sdl_overlay(const GameState *state)
     }
 }
 
+/* AB3DI.s EnergyBar/AmmoBar: 8-pixel strips in attached border sprites,
+ * starting at row 24 (25*16 includes the sprite control words). Health is
+ * on the left, ammo on the right; both drain downwards from the top.
+ * Preserve the original strip silhouettes and ScreenSetup.s HealthPal ramp. */
+static SDL_Texture *display_bar_hud_texture(int kind)
+{
+    if (g_bar_hud_tex[kind]) return g_bar_hud_tex[kind];
+    char path[512];
+    io_make_data_path(path, sizeof(path), kind ? "gfx/AmmoStrip" : "gfx/HealthStrip");
+    size_t size = 0;
+    Uint8 *strip = (Uint8 *)SDL_LoadFile(path, &size);
+    if (!strip || size != 512) {
+        fprintf(stderr, "[DISPLAY] HUD strip %s: expected 512 bytes, got %zu (%s)\n",
+                path, size, SDL_GetError());
+        SDL_free(strip);
+        exit(1);
+    }
+    io_make_data_path(path, sizeof(path), "pal/HealthPal");
+    size_t palette_size = 0;
+    Uint8 *palette = (Uint8 *)SDL_LoadFile(path, &palette_size);
+    if (!palette || palette_size != 160) {
+        fprintf(stderr, "[DISPLAY] HUD palette %s: expected 160 bytes, got %zu (%s)\n",
+                path, palette_size, SDL_GetError());
+        SDL_free(strip);
+        SDL_free(palette);
+        exit(1);
+    }
+    uint32_t pixels[8 * 128];
+    for (int y = 0; y < 128; y++) {
+        /* ScreenSetup.s advances HealthPal once per two physical rows.
+         * The sprite strip begins 24 rows below the view's top edge. */
+        int pal_row = (24 + y) / 2;
+        uint16_t c12 = (uint16_t)((palette[pal_row * 2] << 8) |
+                                  palette[pal_row * 2 + 1]);
+        for (int x = 0; x < 8; x++) {
+            int colour = 0;
+            for (int plane = 0; plane < 4; plane++)
+                colour |= ((strip[y * 4 + plane] >> (7 - x)) & 1) << plane;
+            /* Keep zero transparent and the original four-plane shading. */
+            Uint8 r = (Uint8)(((c12 >> 8) & 15) * 17 * colour / 15);
+            Uint8 g = (Uint8)(((c12 >> 4) & 15) * 17 * colour / 15);
+            Uint8 b = (Uint8)((c12 & 15) * 17 * colour / 15);
+            pixels[y * 8 + x] = colour ? (0x60000000u | ((uint32_t)r << 16) |
+                                         ((uint32_t)g << 8) | b) : 0;
+        }
+    }
+    SDL_free(strip);
+    SDL_free(palette);
+    SDL_Texture *tex = SDL_CreateTexture(g_sdl_ren, SDL_PIXELFORMAT_ARGB8888,
+                                         SDL_TEXTUREACCESS_STATIC, 8, 128);
+    if (!tex || SDL_UpdateTexture(tex, NULL, pixels, 8 * sizeof(uint32_t)) != 0) {
+        fprintf(stderr, "[DISPLAY] Cannot upload HUD bar: %s\n", SDL_GetError());
+        exit(1);
+    }
+    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+    SDL_SetTextureScaleMode(tex, SDL_ScaleModeNearest);
+#endif
+    g_bar_hud_tex[kind] = tex;
+    return tex;
+}
+
+static void display_hud_stats_sdl_overlay(const GameState *state)
+{
+    if (!state || !g_sdl_ren) return;
+    if (!state->cfg_hud_bars) {
+        display_hud_numbers_sdl_overlay(state);
+        return;
+    }
+    const PlayerState *plr = state->mode == MODE_SLAVE ? &state->plr2 : &state->plr1;
+    int values[2] = { plr->energy, state->ammo };
+    if (state->infinite_ammo) values[1] = 63;
+    int pw = g_present_dst_rect.w, ph = g_present_dst_rect.h;
+    if (pw < 8 || ph < 8) return;
+    /* Compact borderless HUD requested from the Amiga reference: half-view
+     * height, narrow strips, centred vertically at the side edges. */
+    int bw = ph * 4 / 256;
+    if (bw < 2) bw = 2;
+    int margin = ph * 8 / 256;
+    int full_h = ph * 128 / 256;
+    int top = (ph - full_h) / 2;
+    for (int kind = 0; kind < 2; kind++) {
+        int maximum = kind ? 63 : PLAYER_MAX_ENERGY;
+        int value = values[kind];
+        if (value < 0) value = 0;
+        if (value > maximum) value = maximum;
+        int x = kind ? pw - margin - bw : margin;
+        display_key_hud_fill_rect(g_sdl_ren, x - 1, top - 1, bw + 2, full_h + 2,
+                                  12, 12, 12, 24);
+        int missing_rows = kind ? (63 - value) * 2 : PLAYER_MAX_ENERGY - value;
+        int rows = kind ? value * 2 : value;
+        if (rows == 0) continue;
+        SDL_Rect src = { 0, missing_rows, 8, rows };
+        int y0 = top + missing_rows * full_h / 128;
+        int y1 = top + (missing_rows + rows) * full_h / 128;
+        SDL_Rect dst = { g_present_dst_rect.x + x, g_present_dst_rect.y + y0,
+                         bw, y1 - y0 };
+        if (dst.h > 0) display_overlay_copy(display_bar_hud_texture(kind), &src, &dst);
+    }
+}
+
+static void display_hit_flash_overlay(const GameState *state)
+{
+    if (!state || state->infinite_health) return;
+    int hit = state->mode == MODE_SLAVE ? state->hitcol2 : state->hitcol;
+    if (hit <= 0) return;
+    if (hit > 0xF00) hit = 0xF00;
+    /* Original hitcol red pulse, adapted to a borderless view. */
+    display_overlay_fill_rect_abs(&g_present_dst_rect, 255, 0, 0,
+                                   (Uint8)(hit * 88 / 0xF00));
+}
+
 static void display_key_hud_sdl_overlay(const GameState *state)
 {
     if (!state || !g_sdl_ren) return;
@@ -4185,7 +4303,7 @@ static void display_key_hud_sdl_overlay(const GameState *state)
     for (int i = 0; i < 4; i++) {
         uint8_t bit = (uint8_t)(1u << i);
         int collected = (((uint16_t)game_conditions & (uint16_t)bit) != 0);
-        Uint8 alpha = collected ? (Uint8)255 : (Uint8)128;
+        Uint8 alpha = collected ? (Uint8)255 : (Uint8)40;
 
         int frame = renderer_key_sprite_frame_for_condition_bit(state, i);
         if (frame < 0) frame = 0;
@@ -4193,6 +4311,13 @@ static void display_key_hud_sdl_overlay(const GameState *state)
 
         int ix = ix0 + i * (kh + gap);
 
+        if (collected) {
+            /* An underline identifies ownership even against bright scenery. */
+            int mark_h = kh / 10;
+            if (mark_h < 2) mark_h = 2;
+            display_key_hud_fill_rect(g_sdl_ren, ix, iy + kh + 1, kh, mark_h,
+                                      255, 245, 200, 255);
+        }
         SDL_Texture *tex = display_key_hud_texture_for_frame(frame);
         if (tex) {
             SDL_SetTextureAlphaMod(tex, alpha);
@@ -4538,6 +4663,7 @@ static void display_present_cw_frame(GameState *state)
     }
 
     if (state) {
+        display_hit_flash_overlay(state);
         display_hud_stats_sdl_overlay(state);
         display_key_hud_sdl_overlay(state);
         display_crosshair_sdl_overlay(state);
@@ -4744,56 +4870,6 @@ void display_clear_screen_tint(void)
 /* -----------------------------------------------------------------------
  * HUD
  * ----------------------------------------------------------------------- */
-void display_energy_bar(int16_t energy)
-{
-    int w = g_renderer.width, h = g_renderer.height;
-    int bar_y = h - 2;
-    int bar_w = (energy > 0) ? ((int)energy * (w - 4) / 127) : 0;
-    const uint32_t px = RENDER_RGB_RASTER_PIXEL(0x00CC00u);
-    if (renderer_get_rgb_raster_expand()) {
-        uint32_t *rgb = renderer_get_active_rgb_target();
-        if (!rgb) return;
-        for (int x = 2; x < 2 + bar_w && x < w - 2; x++) {
-            rgb[bar_y * w + x] = px;
-            rgb[(bar_y - 1) * w + x] = px;
-        }
-    } else {
-        uint16_t *cw = renderer_get_active_cw_target();
-        if (!cw) return;
-        uint16_t c = renderer_argb_to_amiga12(px);
-        for (int x = 2; x < 2 + bar_w && x < w - 2; x++) {
-            cw[bar_y * w + x] = c;
-            cw[(bar_y - 1) * w + x] = c;
-        }
-    }
-}
-
-void display_ammo_bar(int16_t ammo)
-{
-    int w = g_renderer.width, h = g_renderer.height;
-    int bar_y = h - 5;
-    int max_ammo = 999;
-    int bar_w = (ammo > 0) ? ((int)ammo * (w - 4) / max_ammo) : 0;
-    if (bar_w > w - 4) bar_w = w - 4;
-    const uint32_t px = RENDER_RGB_RASTER_PIXEL(0xCCCC00u);
-    if (renderer_get_rgb_raster_expand()) {
-        uint32_t *rgb = renderer_get_active_rgb_target();
-        if (!rgb) return;
-        for (int x = 2; x < 2 + bar_w && x < w - 2; x++) {
-            rgb[bar_y * w + x] = px;
-            rgb[(bar_y - 1) * w + x] = px;
-        }
-    } else {
-        uint16_t *cw = renderer_get_active_cw_target();
-        if (!cw) return;
-        uint16_t c = renderer_argb_to_amiga12(px);
-        for (int x = 2; x < 2 + bar_w && x < w - 2; x++) {
-            cw[bar_y * w + x] = c;
-            cw[(bar_y - 1) * w + x] = c;
-        }
-    }
-}
-
 /* -----------------------------------------------------------------------
  * Text (minimal for now)
  * ----------------------------------------------------------------------- */

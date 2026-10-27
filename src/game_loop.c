@@ -1,3 +1,6 @@
+#ifdef AB3D_XR
+#include "native.h"
+#endif
 /*
  * Alien Breed 3D I - PC Port
  * game_loop.c - Main per-frame game loop
@@ -1476,6 +1479,13 @@ void game_loop_tick(GameState *state, GameLoopCtx *ctx)
      * Always: Poll input every display frame for responsiveness
      * ================================================================ */
         input_update(state->key_map, &state->last_pressed);
+#ifdef AB3D_XR
+        if (abxr_poll(state)) {
+            game_loop_pause_timing(state, ctx);
+            display_draw_display(state);
+            return;
+        }
+#endif
 #if defined(__EMSCRIPTEN__)
         display_emscripten_frame_resize_poll();
 #endif
@@ -1682,7 +1692,13 @@ void game_loop_tick(GameState *state, GameLoopCtx *ctx)
             }
 
             /* ---- Phase 14: Shooting, objects ---- */
+#ifdef AB3D_XR
+            abxr_begin_shot(state);
+#endif
             player1_shoot(state);
+#ifdef AB3D_XR
+            abxr_end_shot(state);
+#endif
             if (state->mode != MODE_SINGLE) {
                 player2_shoot(state);
             }

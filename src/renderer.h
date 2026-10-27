@@ -267,6 +267,7 @@ typedef struct {
      *   color_word = lut[SCALE[d6] + texel5 * 2]  (big-endian 16-bit)
      * The word is a 12-bit Amiga color (0x0RGB). */
     const uint8_t *wall_palettes[MAX_WALL_TILES];
+    size_t wall_pixel_bytes[MAX_WALL_TILES];
 
     /* Wall texture dimensions from loaded file (rows = 1<<wall_valshift[i], valand = rows-1).
      * Set by io_load_walls from actual file size; 0 means use level data. */
@@ -279,6 +280,7 @@ typedef struct {
     /* Floor tile texture (from floortile - 256x256 sheet, 8-bit texels).
      * Individual 64x64 tiles are at floortile + whichtile offset. */
     const uint8_t *floor_tile;
+    size_t floor_pixel_bytes;
 
     /* Floor brightness LUT (from FloorPalScaled - 15 levels * 512 bytes).
      * Maps texel -> brightness-scaled color. NULL if not loaded. */

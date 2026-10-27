@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
-project(ab3d1 VERSION 1.0.1 LANGUAGES C)
+project(ab3d1 VERSION 1.0.1 LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
+option(AB3D_XR "Native GPU/OpenXR port" ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 set(CMAKE_C_STANDARD 11)
@@ -47,19 +49,8 @@ endif()
 # SDL2 (FetchContent on native; Emscripten uses -sUSE_SDL=2)
 # -----------------------------------------------------------------------
 if(NOT EMSCRIPTEN)
-  include(FetchContent)
-  set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-  set(SDL_STATIC ON CACHE BOOL "" FORCE)
-  set(SDL_TEST OFF CACHE BOOL "" FORCE)
-  set(SDL2_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
+  find_package(SDL2 REQUIRED CONFIG)
 
-  FetchContent_Declare(
-      SDL2
-      GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-      GIT_TAG        release-2.30.11
-      GIT_SHALLOW    TRUE
-  )
-  FetchContent_MakeAvailable(SDL2)
 endif()
 
 # All source files
@@ -138,7 +129,7 @@ endif()
 
 # Link SDL2 (no SDL2main); Emscripten links SDL2 via -sUSE_SDL=2
 if(NOT EMSCRIPTEN)
-  target_link_libraries(ab3d1 PRIVATE SDL2-static)
+  target_link_libraries(ab3d1 PRIVATE SDL2::SDL2)
 endif()
 target_include_directories(ab3d1 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
 
@@ -369,4 +360,28 @@ target_compile_definitions(parse_level PRIVATE AB3D_STANDALONE_TOOL)
 if(MSVC)
     target_compile_definitions(parse_level PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
+endif()
+
+if(AB3D_XR AND NOT EMSCRIPTEN)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(OPENXR REQUIRED IMPORTED_TARGET openxr)
+  pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
+  find_package(OpenGL REQUIRED COMPONENTS OpenGL EGL)
+  find_package(X11 REQUIRED)
+  find_package(Threads REQUIRED)
+  find_package(nlohmann_json REQUIRED)
+  target_sources(ab3d1 PRIVATE xr/native.cpp xr/render.cpp xr/xr.cpp xr/domed.cpp)
+  target_include_directories(ab3d1 PRIVATE xr)
+  target_compile_definitions(ab3d1 PRIVATE AB3D_XR=1 TEMPEST_OPENXR=1 GL_GLEXT_PROTOTYPES)
+  target_link_libraries(ab3d1 PRIVATE PkgConfig::OPENXR PkgConfig::CURL OpenGL::GL OpenGL::EGL OpenGL::GLU X11::X11 Threads::Threads nlohmann_json::nlohmann_json)
+  set_target_properties(ab3d1 PROPERTIES OUTPUT_NAME alien-breed-xr)
+endif()
+include(CTest)
+if(BUILD_TESTING AND AB3D_XR AND NOT EMSCRIPTEN)
+  add_library(ab3d-mock-openxr SHARED xr/tests/mock-openxr.cpp)
+  target_link_libraries(ab3d-mock-openxr PRIVATE OpenGL::GL PkgConfig::OPENXR)
+  if(Python3_FOUND)
+    add_test(NAME native-gpu-stereo COMMAND ${CMAKE_COMMAND} -E env
+      ABXR_BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR} ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/xr/tests/test_native.py)
+  endif()
 endif()

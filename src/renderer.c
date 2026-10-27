@@ -16003,3 +16003,31 @@ void renderer_draw_display(GameState *state)
     g_renderer_profile_collect_stats = 0;
     g_renderer_zone_trace_active = 0;
 }
+
+#ifdef AB3D_XR
+int renderer_xr_decode_sprite(int vect, int frame, int width, int height, uint8_t *rgba) {
+    if (vect < 0 || vect >= MAX_SPRITE_TYPES || width < 1 || width > 256 || height < 1 || height > 256) return 0;
+    const uint8_t *wad=g_renderer.sprite_wad[vect], *ptr=g_renderer.sprite_ptr[vect], *pal=g_renderer.sprite_pal_data[vect];
+    if (!wad || !ptr || !pal) return 0;
+    const SpriteFrame *table=sprite_frames_table[vect].frames;
+    int count=sprite_frames_table[vect].count;
+    if (!table || frame < 0 || frame >= count) return 0;
+    memset(rgba,0,(size_t)width*height*4);
+    for (int x=0;x<width;x++) {
+        size_t p=table[frame].ptr_off+(size_t)x*4;
+        if (p+4>g_renderer.sprite_ptr_size[vect]) continue;
+        unsigned mode=ptr[p], off=((unsigned)ptr[p+1]<<16)|((unsigned)ptr[p+2]<<8)|ptr[p+3];
+        if ((!mode&&!off)||mode>2) continue;
+        for(int y=0;y<height;y++) {
+            size_t i=off+(table[frame].down_strip+(size_t)y)*2;
+            if(i+2>g_renderer.sprite_wad_size[vect])break;
+            unsigned texel=((unsigned)(uint16_t)rd16(wad+i)>>(mode*5))&31;
+            if(!texel)continue;
+            size_t po=7*64+texel*2;if(po+2>g_renderer.sprite_pal_size[vect])continue;
+            unsigned color=(uint16_t)rd16(pal+po);size_t dest=((size_t)y*width+x)*4;
+            rgba[dest]=((color>>8)&15)*17;rgba[dest+1]=((color>>4)&15)*17;rgba[dest+2]=(color&15)*17;rgba[dest+3]=255;
+        }
+    }
+    return 1;
+}
+#endif

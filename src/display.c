@@ -1,3 +1,6 @@
+#ifdef AB3D_XR
+#include "native.h"
+#endif
 /*
  * Alien Breed 3D I - PC Port
  * display.c - SDL2 display backend
@@ -4736,6 +4739,9 @@ static void display_present_cw_frame(GameState *state)
 
 void display_draw_display(GameState *state)
 {
+#ifdef AB3D_XR
+    abxr_present(state); return;
+#endif
     /* Tell renderer to skip CPU work when the GL overlay path will handle it. */
     int use_gl_weapon = state && state->cfg_weapon_post_gl && g_gl_unpack_ok && g_gl_hud_ok;
     int use_gl_water_tint = state && state->cfg_post_tint && g_gl_unpack_ok && g_gl_hud_ok;

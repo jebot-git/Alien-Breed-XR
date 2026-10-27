@@ -41,6 +41,10 @@
 #include "io.h"
 #include "renderer_3dobj.h"
 #include "settings.h"
+#ifdef AB3D_XR
+#include "native.h"
+#include "game_loop.h"
+#endif
 
 #if defined(__EMSCRIPTEN__)
 #include "emscripten_loop.h"
@@ -75,6 +79,11 @@ static void setup_game(GameState *state)
     settings_load(state);
     fflush(stdout);
 
+#ifdef AB3D_XR
+    state->cfg_display_mode = 0;
+    state->cfg_render_width = 960; state->cfg_render_height = 640;
+    state->cfg_supersampling = 1; state->cfg_render_threads = false;
+#endif
     display_init(state);
     input_init();
     audio_init();
@@ -152,19 +161,42 @@ int main(int argc, char *argv[])
         printf("[3DOBJ] Animation mode: Amiga static frame 0 (--amiga-3dobj-static)\n");
     }
 
+#ifdef AB3D_XR
+    int startup_result = abxr_startup(argc, argv);
+    if (startup_result) return startup_result < 0 ? 2 : 0;
+#endif
     setup_game(&g_state);
 #if defined(__EMSCRIPTEN__)
     emscripten_run_game(&g_state);
     /* Game runs in emscripten_set_main_loop; tear_down + log shutdown happen when the loop ends. */
     return 0;
 #else
+#ifdef AB3D_XR
+    play_game_load_shared_assets(&g_state);
+    g_state.current_level = abxr_level();
+    bool copper_ready = false;
+    do {
+        play_the_game_prepare_level(&g_state, &copper_ready);
+        game_loop(&g_state);
+        if (g_state.finished_level && !input_quit_requested()) {
+            io_release_level_memory(&g_state.level);
+            ++g_state.current_level;
+        } else break;
+    } while (g_state.current_level < 16 && !abxr_quitting());
+    abxr_shutdown();
+#else
     play_game(&g_state);
+#endif
     tear_down_game(&g_state);
 
     /* OSFriendlyExit is a no-op on PC */
 
     printf("\n=== Exit (code 0) ===\n");
     ab3d_log_shutdown();
+#ifdef AB3D_XR
+    return abxr_status();
+#else
     return 0;
+#endif
 #endif
 }

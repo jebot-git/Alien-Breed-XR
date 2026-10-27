@@ -55,7 +55,7 @@ int ab3d_log_init_file(void)
 {
     if (g_log_ready) return 1;
 
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(AB3D_XR)
     /* Keep stdout/stderr on Emscripten's default streams so output reaches Module.print / console. */
     snprintf(g_log_path, sizeof(g_log_path), "(browser console)");
     setvbuf(stdout, NULL, _IONBF, 0);

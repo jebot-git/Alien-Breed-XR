@@ -946,6 +946,7 @@ void io_load_walls(void)
              * walltiles points past the LUT to the chunky pixel data
              * (ASM: ChunkAddr = walltiles[id] + 64*32). */
             g_renderer.wall_palettes[i] = data;
+            g_renderer.wall_pixel_bytes[i] = size > 2048 ? size - 2048 : size;
             g_renderer.walltiles[i] = (size > 2048) ? data + 2048 : data;
             if (size > 2048) {
                 int pixel_size = (int)(size - 2048);
@@ -1000,6 +1001,7 @@ void io_load_floor(void)
             fread(g_floor_tile_data, 1, (size_t)len, f);
             printf("[IO] Floor tile: %ld bytes from %s\n", len, path);
             g_renderer.floor_tile = g_floor_tile_data;
+            g_renderer.floor_pixel_bytes = (size_t)len;
         }
         fclose(f);
     } else {

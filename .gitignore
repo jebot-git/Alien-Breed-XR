@@ -9,3 +9,6 @@ build-ci/
 dist/
 dist-*/
 /data/
+
+build-xr/
+artifacts/

@@ -1,3 +1,15 @@
+# Alien Breed XR / DomeD native port attempt
+
+This branch adds native OpenGL world rendering, OpenXR stereo views, tracked
+controller actions and Tempest XR-compatible DomeD fullscreen input/background
+handoff to the existing Alien Breed 3D I C port. Read
+[xr/README.md](xr/README.md) for build/run instructions, validation and the
+remaining rendering/gameplay limits. This is an early prototype.
+
+The original upstream README follows.
+
+---
+
 # Alien Breed 3D I (PC Port)
 
 A C port of Alien Breed 3D I (Amiga), translating the original 68000 assembly into C and rendering with SDL2 on Windows, Linux, and macOS.

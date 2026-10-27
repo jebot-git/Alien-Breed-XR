@@ -48,6 +48,7 @@ struct Model {
     std::vector<Channel> channels;
     std::vector<Pose> pose;
     std::array<float,3> muzzle{0,0,-.3f};
+    int muzzleNode=-1;
     float duration=0;
     int sampledTick=std::numeric_limits<int>::min();
     ~Model() {
@@ -146,7 +147,7 @@ struct Model {
             if(source.contains("matrix"))n.matrix=source.at("matrix").get<std::vector<float>>();
             require(n.matrix.empty()||n.matrix.size()==16,"invalid node matrix");
             if(source.contains("children"))n.children=source.at("children").get<std::vector<int>>();
-            if(n.name=="muzzle")muzzle=n.rest.translation;
+            if(n.name=="muzzle"){muzzle=n.rest.translation;muzzleNode=int(nodes.size());}
             nodes.push_back(n);
         }
         roots=json.at("scenes").at(json.value("scene",0)).at("nodes").get<std::vector<int>>();
@@ -184,6 +185,36 @@ struct Model {
             for(int i=0;i<c.components;++i)out[i]=wa*a[i]+wb*sign*b[i];
             if(c.components==4){float norm=0;for(int i=0;i<4;++i)norm+=out[i]*out[i];require(norm>0,"zero quaternion");for(int i=0;i<4;++i)out[i]/=std::sqrt(norm);}
         }
+    }
+    using Matrix=std::array<float,16>;
+    static Matrix multiply(const Matrix &a,const Matrix &b){
+        Matrix out{};
+        for(int c=0;c<4;++c)for(int r=0;r<4;++r)for(int k=0;k<4;++k)out[c*4+r]+=a[k*4+r]*b[c*4+k];
+        return out;
+    }
+    bool socketMatrix(int index,const Matrix &parent,Matrix &result,int depth=0)const{
+        require(depth<128 && index>=0 && size_t(index)<nodes.size(),"invalid socket hierarchy");
+        const auto &n=nodes[index];const auto &p=pose[index];auto q=p.rotation;
+        float x=q[0],y=q[1],z=q[2],w=q[3];
+        Matrix local{1-2*(y*y+z*z),2*(x*y+w*z),2*(x*z-w*y),0,
+            2*(x*y-w*z),1-2*(x*x+z*z),2*(y*z+w*x),0,
+            2*(x*z+w*y),2*(y*z-w*x),1-2*(x*x+y*y),0,
+            p.translation[0],p.translation[1],p.translation[2],1};
+        for(int c=0;c<3;++c)for(int r=0;r<3;++r)local[c*4+r]*=p.scale[c];
+        if(!n.matrix.empty())std::copy_n(n.matrix.begin(),16,local.begin());
+        auto world=multiply(parent,local);
+        if(index==muzzleNode){result=world;return true;}
+        for(int child:n.children)if(socketMatrix(child,world,result,depth+1))return true;
+        return false;
+    }
+    WeaponSocket socket()const{
+        Matrix identity{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1},world{};
+        for(int root:roots)if(socketMatrix(root,identity,world)){
+            float length=std::sqrt(world[8]*world[8]+world[9]*world[9]+world[10]*world[10]);
+            require(length>.00001f,"invalid muzzle direction");
+            return {{world[12],world[13],world[14]},{-world[8]/length,-world[9]/length,-world[10]/length}};
+        }
+        throw std::runtime_error("Weapon glTF: missing muzzle socket");
     }
     unsigned long node(int index,bool transparent,int depth=0) {
         require(depth<128 && index>=0 && size_t(index)<nodes.size(),"invalid scene graph");
@@ -229,6 +260,10 @@ void WeaponRenderer::loadAll(){
 std::array<float,3> WeaponRenderer::muzzle(int slot)const {
     require(slot>=0&&slot<8&&bool(p->models[slot]),"selected model is not loaded");return p->models[slot]->muzzle;
 }
+WeaponSocket WeaponRenderer::muzzlePose(int slot,int remainingTicks){
+    require(slot>=0&&slot<8&&bool(p->models[slot]),"selected model is not loaded");
+    auto &model=*p->models[slot];model.sample(remainingTicks,gun_anims[slot].num_frames);return model.socket();
+}
 void WeaponRenderer::draw(int slot,int remainingTicks){
     require(slot>=0&&slot<8&&bool(p->models[slot]),"selected model is not loaded");auto &model=*p->models[slot];
     model.sample(remainingTicks,gun_anims[slot].num_frames);
@@ -236,7 +271,9 @@ void WeaponRenderer::draw(int slot,int remainingTicks){
     glPushAttrib(GL_ALL_ATTRIB_BITS);glPushClientAttrib(GL_CLIENT_VERTEX_ARRAY_BIT);
     glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_CULL_FACE);glDisable(GL_FOG);
     glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_GREATER,.1f);glEnable(GL_NORMALIZE);glEnable(GL_COLOR_MATERIAL);glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);
-    glEnable(GL_LIGHT0);float ambient[]={.55f,.55f,.55f,1},diffuse[]={.65f,.65f,.65f,1},light[]={-.3f,.7f,.6f,0};
+    // Soft fill preserves the original painted metal detail on inferred side
+    // faces while a restrained key light still describes the 3D volume.
+    glEnable(GL_LIGHT0);float ambient[]={.72f,.72f,.72f,1},diffuse[]={.5f,.5f,.5f,1},light[]={-.3f,.7f,.6f,0};
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT,ambient);glLightfv(GL_LIGHT0,GL_DIFFUSE,diffuse);glLightfv(GL_LIGHT0,GL_POSITION,light);
     glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
     glEnableClientState(GL_VERTEX_ARRAY);glEnableClientState(GL_NORMAL_ARRAY);glEnableClientState(GL_TEXTURE_COORD_ARRAY);

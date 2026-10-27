@@ -16,9 +16,9 @@ inline XrVector3f rotateVector(XrQuaternionf q,XrVector3f v){
             2*(q.x*q.z-q.w*q.y)*v.x+2*(q.y*q.z+q.w*q.x)*v.y+(1-2*(q.x*q.x+q.y*q.y))*v.z};
 }
 /* Shared muzzle and -Z barrel ray for both shooting and the short laser. */
-inline WeaponRay weaponRay(XrPosef pose,const std::array<float,3> &socket){
+inline WeaponRay weaponRay(XrPosef pose,const std::array<float,3> &socket,const std::array<float,3> &direction={0,0,-1}){
     auto offset=rotateVector(pose.orientation,{socket[0],socket[1],socket[2]});
     return {{pose.position.x+offset.x,pose.position.y+offset.y,pose.position.z+offset.z},
-            rotateVector(pose.orientation,{0,0,-1})};
+            rotateVector(pose.orientation,{direction[0],direction[1],direction[2]})};
 }
 }

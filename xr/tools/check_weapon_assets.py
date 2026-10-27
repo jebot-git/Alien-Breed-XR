@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import struct
+from PIL import Image
 ROOT=Path(__file__).resolve().parents[2]/'xr/assets/weapons'
 manifest=json.loads((ROOT/'reconstruction.json').read_text())
 for item in manifest['weapons']:
@@ -37,3 +38,14 @@ for item in manifest['weapons']:
     assert sum(n.get('name')=='grip' for n in g['nodes'])==1
     assert sum(n.get('name')=='muzzle' for n in g['nodes'])==1
     print('PASS',item['name'],len(item['sequence']),'engine ticks, STEP appearance, neutral default, embedded textures and sockets')
+surfaces=json.loads((ROOT/'surfaces.json').read_text())
+for weapon in surfaces['weapons']:
+    image=Image.open(ROOT/weapon['atlas']).convert('RGB')
+    assert image.size==(1024,256)
+    colors=set()
+    for state in range(4):
+        sprite=Image.open(ROOT/'sprites'/f'{weapon["name"]}-{state}.png').convert('RGBA')
+        colors.update(c[:3] for c in sprite.getdata() if c[3])
+    assert set(image.getdata())<=colors,weapon['name']+' surface introduced non-original palette colours'
+    assert weapon['source_rows'] and len(set(image.getdata()))>8
+    print('PASS',weapon['name'],'original-palette UV atlas, recorded silhouette/depth model and hand exclusion')

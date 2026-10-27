@@ -1,206 +1,142 @@
-[
-  {
-    "file": "flamethrower.glb",
-    "meshes": 5,
-    "samples": [
-      [
-        0,
-        "sprite_frame_3"
+{
+  "version": 2,
+  "blender": "5.4.0 Alpha",
+  "weapons": [
+    {
+      "file": "pistol.glb",
+      "mesh_objects": 9,
+      "samples": [
+        [
+          0,
+          "sprite_frame_3"
+        ],
+        [
+          1,
+          "sprite_frame_2"
+        ],
+        [
+          2,
+          "sprite_frame_1"
+        ],
+        [
+          3,
+          "sprite_frame_0"
+        ]
       ],
-      [
-        1,
-        "sprite_frame_3"
+      "uvs": true,
+      "body_boundary_edges": 0
+    },
+    {
+      "file": "plasma.glb",
+      "mesh_objects": 10,
+      "samples": [
+        [
+          0,
+          "sprite_frame_3"
+        ],
+        [
+          1,
+          "sprite_frame_3"
+        ],
+        [
+          2,
+          "sprite_frame_3"
+        ],
+        [
+          3,
+          "sprite_frame_2"
+        ],
+        [
+          5,
+          "sprite_frame_0"
+        ]
       ],
-      [
-        3,
-        "sprite_frame_2"
+      "uvs": true,
+      "body_boundary_edges": 0
+    },
+    {
+      "file": "rocket.glb",
+      "mesh_objects": 5,
+      "samples": [
+        [
+          0,
+          "sprite_frame_3"
+        ],
+        [
+          1,
+          "sprite_frame_3"
+        ],
+        [
+          2,
+          "sprite_frame_3"
+        ],
+        [
+          3,
+          "sprite_frame_2"
+        ],
+        [
+          5,
+          "sprite_frame_0"
+        ]
       ],
-      [
-        6,
-        "sprite_frame_0"
+      "uvs": true,
+      "body_boundary_edges": 0
+    },
+    {
+      "file": "grenade.glb",
+      "mesh_objects": 8,
+      "samples": [
+        [
+          0,
+          "sprite_frame_3"
+        ],
+        [
+          1,
+          "sprite_frame_3"
+        ],
+        [
+          2,
+          "sprite_frame_3"
+        ],
+        [
+          6,
+          "sprite_frame_2"
+        ],
+        [
+          12,
+          "sprite_frame_0"
+        ]
       ],
-      [
-        12,
-        "sprite_frame_0"
+      "uvs": true,
+      "body_boundary_edges": 0
+    },
+    {
+      "file": "shotgun.glb",
+      "mesh_objects": 9,
+      "samples": [
+        [
+          0,
+          "sprite_frame_0"
+        ],
+        [
+          1,
+          "sprite_frame_0"
+        ],
+        [
+          2,
+          "sprite_frame_3"
+        ],
+        [
+          32,
+          "sprite_frame_2"
+        ],
+        [
+          63,
+          "sprite_frame_0"
+        ]
       ],
-      [
-        30,
-        "sprite_frame_0"
-      ],
-      [
-        63,
-        "sprite_frame_0"
-      ]
-    ]
-  },
-  {
-    "file": "grenade.glb",
-    "meshes": 8,
-    "samples": [
-      [
-        0,
-        "sprite_frame_3"
-      ],
-      [
-        1,
-        "sprite_frame_3"
-      ],
-      [
-        3,
-        "sprite_frame_3"
-      ],
-      [
-        6,
-        "sprite_frame_2"
-      ],
-      [
-        12,
-        "sprite_frame_0"
-      ],
-      [
-        30,
-        "sprite_frame_0"
-      ],
-      [
-        63,
-        "sprite_frame_0"
-      ]
-    ]
-  },
-  {
-    "file": "pistol.glb",
-    "meshes": 5,
-    "samples": [
-      [
-        0,
-        "sprite_frame_3"
-      ],
-      [
-        1,
-        "sprite_frame_2"
-      ],
-      [
-        3,
-        "sprite_frame_0"
-      ],
-      [
-        6,
-        "sprite_frame_0"
-      ],
-      [
-        12,
-        "sprite_frame_0"
-      ],
-      [
-        30,
-        "sprite_frame_0"
-      ],
-      [
-        63,
-        "sprite_frame_0"
-      ]
-    ]
-  },
-  {
-    "file": "plasma.glb",
-    "meshes": 6,
-    "samples": [
-      [
-        0,
-        "sprite_frame_3"
-      ],
-      [
-        1,
-        "sprite_frame_3"
-      ],
-      [
-        3,
-        "sprite_frame_2"
-      ],
-      [
-        6,
-        "sprite_frame_0"
-      ],
-      [
-        12,
-        "sprite_frame_0"
-      ],
-      [
-        30,
-        "sprite_frame_0"
-      ],
-      [
-        63,
-        "sprite_frame_0"
-      ]
-    ]
-  },
-  {
-    "file": "rocket.glb",
-    "meshes": 5,
-    "samples": [
-      [
-        0,
-        "sprite_frame_3"
-      ],
-      [
-        1,
-        "sprite_frame_3"
-      ],
-      [
-        3,
-        "sprite_frame_2"
-      ],
-      [
-        6,
-        "sprite_frame_0"
-      ],
-      [
-        12,
-        "sprite_frame_0"
-      ],
-      [
-        30,
-        "sprite_frame_0"
-      ],
-      [
-        63,
-        "sprite_frame_0"
-      ]
-    ]
-  },
-  {
-    "file": "shotgun.glb",
-    "meshes": 9,
-    "samples": [
-      [
-        0,
-        "sprite_frame_0"
-      ],
-      [
-        1,
-        "sprite_frame_0"
-      ],
-      [
-        3,
-        "sprite_frame_0"
-      ],
-      [
-        6,
-        "sprite_frame_0"
-      ],
-      [
-        12,
-        "sprite_frame_0"
-      ],
-      [
-        30,
-        "sprite_frame_2"
-      ],
-      [
-        63,
-        "sprite_frame_0"
-      ]
-    ]
-  }
-]
+      "uvs": true,
+      "body_boundary_edges": 0
+    }
+  ]
+}

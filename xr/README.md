@@ -104,6 +104,11 @@ Controller shots originate at the named muzzle socket and are blocked when its
 path crosses a wall. The source/editable assets are in `xr/assets/weapons/`.
 The weapon projects a short, depth-tested laser (up to 1.25 m) from that same
 socket and direction, clipped against nearby walls and floor/ceiling openings.
+The socket follows the full animated hierarchy, including recoil and the
+double-barrel breech. The five current models have solid inferred side/bottom
+surfaces, recessed bores and original-palette pixel UV atlases, with painted
+hand pixels excluded from weapon materials. Their editable Blender scene,
+depth assumptions and source references are in `xr/assets/weapons/`.
 It is a visual aiming guide, hidden in the pause menu or at a blocked muzzle.
 Projectile launch follows the full tracked direction; grenade gravity still
 curves the path after launch. Incoming damage shows the original brief red
@@ -151,7 +156,7 @@ Production rendering has no framebuffer readback; capture is explicit.
 
 This is a working source-port prototype, **not a completed VR conversion**.
 Curved-wall records, complete sprite frame/type fallbacks,
-water/bump effects, lighting/material accuracy, sky, weapon models and the
+water/bump effects, exact original lighting/material accuracy, sky and the
 original title/options menu presentation are not fully ported. Unknown/unavailable sprite
 frames have coloured markers. Floor texture scale and wall UV fidelity need
 further comparison with the original renderer. The original collision/AI still

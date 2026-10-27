@@ -487,7 +487,8 @@ extern "C" void abxr_begin_shot(void *data) {
     auto pose = t.hands[1];
     float gripX=pose.position.x-t.anchor.x,gripY=pose.position.y-t.anchor.y,gripZ=pose.position.z-t.anchor.z;
     if(gripX*gripX+gripY*gripY+gripZ*gripZ>2.25f)return;
-    auto ray=weaponRay(pose,renderer.weapons.muzzle(s.plr1.gun_selected));
+    auto socket=renderer.weapons.muzzlePose(s.plr1.gun_selected,s.plr1.gun_frame);
+    auto ray=weaponRay(pose,socket.position,socket.direction);
     pose.position=ray.origin;
     float dx=ray.direction.x,dy=ray.direction.y,dz=ray.direction.z;
     float x = pose.position.x - t.anchor.x, z = pose.position.z - t.anchor.z,

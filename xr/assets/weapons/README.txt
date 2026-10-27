@@ -1,8 +1,10 @@
-AB3D I sprite weapon reconstructions — editable prototype asset set
+AB3D I sprite weapon reconstructions — version 2
 
-Six self-contained glTF 2.0 binary files (.glb): pistol, plasma, rocket,
-flamethrower, grenade and shotgun. Open ab3di-sprite-weapons.blend in system
-Blender to edit the models; overview.png is the Blender studio preview.
+Five current self-contained glTF 2.0 binary files (.glb): pistol, plasma,
+rocket, grenade and shotgun. Open ab3di-sprite-weapons.blend in system Blender
+to edit these five models; overview.png is the Blender studio preview.
+comparison.png compares original sprites, previous models and current native
+GPU rendering from the same side view.
 
 The XR runtime uses only the five original weapons. Legacy asset names map to:
 pistol = Mark IV Pulse Rifle; shotgun = Double Barrel Shotgun;
@@ -12,30 +14,47 @@ but is neither staged nor loaded into the XR game. Slots and filenames are
 retained for compatibility with the original data and existing saves.
 
 Created in the installed DomeD Blender 5.4 Alpha using Blender MCP. These are
-new low-poly reconstructions, not recovered high-detail original meshes.
-Original first-person sprites supply every texture colour, the four appearance
-states, flash cutouts and pose measurements. AB3D II models guide plausible
+new solid reconstructions, not recovered original meshes. Original first-person
+sprites supply silhouette measurements, every texture colour, appearance
+states and flash cutouts. Explicit longitudinal depth sections and rounded or
+chamfered cross-sections reconstruct volume; surfaces absent from the sprites
+continue the receiver panels, venting, bores, grip ribs and mechanical joints.
+AB3D II models guide plausible
 body shapes and part layouts for the five corresponding weapons. Their original
 geometry is retained in a hidden reference-only Blender collection and excluded
-from the GLBs. The flamethrower has no confirmed complete TKG counterpart.
-Unseen surfaces and controller-scale dimensions are approximations. Some sprite
-colours come from hands/gloves in the first-person artwork; unseen material
-assignments are artistic interpretations, not newly discovered source detail.
+from the GLBs. Unseen surfaces and controller-scale dimensions are authored
+inferences. The depth guides are explicit geometric assumptions, not recovered
+measurements or neural predictions. Painted hand pixels are removed from weapon
+surface sampling; brown gloves no longer become wood/fuel-coloured weapon parts.
+
+Presentation:
+- Actual recessed barrel bores/crowns, stepped receivers, inset side panels,
+  cooling recesses, fasteners, sights, trigger guards and ribbed composite grips.
+- Separate top, side, end, bore and underside UV islands. Top surfaces reuse
+  deprojected sprite rows; inferred sides have coherent original-palette pixel
+  shading, panel seams, wear, accents and industrial markings.
+- 1024x256 atlases contain four 256x256 appearance states and sixteen material
+  regions per state. Nearest filtering preserves deliberate coarse pixels.
+- About 1,150–1,740 visible triangles per weapon, under the 2,500-triangle test
+  budget. Static detail is batched and uploaded once; no runtime reconstruction
+  or framebuffer readback is used.
 
 Animation:
 - Each GLB has a Fire clip. Timings follow the current C engine's 50 Hz gun
   countdown tables, including C zero-initialized trailing entries.
-- Body motion is estimated from sprite metal-pixel centroids and principal
-  axes. Foregrip travel and unseen mechanical details are authored estimates.
+- Bounded recoil settles quickly. The grenade fore-end slides; the double
+  barrel shotgun has a hinged breech rather than a pump. Its barrels close
+  before the original cooldown allows the next shot. Travel is inferred.
 - Four UV variants switch via core glTF STEP scale channels, preserving original
   sprite appearance changes without a material animation extension. Only one
   body variant is visible at a time; source Blender uses tiny nonsingular scales
   while sampling, finalized GLBs use exactly zero/one visibility scales.
-- Static parts are batched. Pump/foregrip geometry stays separately animated.
+- Moving mechanisms stay separately animated. The muzzle socket follows recoil
+  and breech motion; native shots and the short laser use the full animated pose.
 - Embedded pixel textures use nearest filtering. Original flash sprites use
   crossed alpha planes; opaque body geometry is fully three-dimensional.
 - Neutral pose is the default when no animation plays. Fire clips last 0.06 s
-  (pistol), 0.10 s (plasma/rocket/flamethrower), 0.24 s (grenade), 1.26 s (shotgun).
+  (pistol), 0.10 s (plasma/rocket), 0.24 s (grenade), 1.26 s (shotgun).
 
 Integration convention:
 Metres, grip origin at weapon root. Blender forward +Y exports to glTF -Z,
@@ -49,27 +68,33 @@ size, silhouette and hand alignment.
 
 Files:
 - sprites/: 24 original RGBA reference frames; slots 5/6 are intentionally omitted.
-- textures/: four-frame sprite atlases, original-palette swatches, flash masks.
+- textures/: current surface atlases and depth guides, original sprite atlases
+  and flash masks. Depth guides are modelling references, not runtime textures.
+- surfaces.json: palette, hand exclusions, silhouette rows and inference notes.
 - reconstruction.json: source hashes, exact tick sequences, pose measurements,
   scale assumptions, and TKG reference geometry/hashes.
 - build-report.json: mesh counts, stored and visible triangle counts.
 - validation.json: Khronos glTF Validator 2.0.0-dev.3.10 results; all six files
   have zero errors and warnings. Informational entries describe marker nodes
   and original non-power-of-two sprite texture dimensions.
-- roundtrip.json: system Blender re-import checks for geometry, UVs, sockets
-  and mutually exclusive sprite states across sampled animation frames.
+- roundtrip.json: five current models re-imported in system Blender; UVs,
+  closed body surfaces and mutually exclusive sprite states are checked.
 
 Rebuild from the repository root (Python preparation needs Pillow):
 python3 xr/tools/prepare_weapon_reconstruction.py --data build-xr/data \
   --tkg <pinned-TKG-checkout>/media/vectobj
+python3 xr/tools/prepare_weapon_surfaces.py
 
 Then execute xr/tools/build_sprite_weapons_blender.py in a fresh system Blender
 through Blender MCP. It creates its own scene and preserves an existing scene;
 a duplicate reconstruction scene causes an error to protect hand edits.
-The TKG directory is optional, and supplies reference geometry only.
+The TKG directory is optional, and supplies reference geometry only. The builder
+imports weapon_geometry.py for the current five solid reconstructions. The old
+flamethrower GLB remains an archived prototype and is not rebuilt or staged.
 
 Check exported timing and portability:
 python3 xr/tools/check_weapon_assets.py
+Execute xr/tools/check_weapon_blender.py in system Blender for round-trip QA.
 node xr/tools/validate_weapon_glb.cjs <absolute-path-to-gltf-validator-module>
 The validator module is KhronosGroup/glTF-Validator's gltf-validator npm package;
 it is a validation tool, not a game/runtime dependency.

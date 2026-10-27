@@ -522,9 +522,10 @@ bool XR::frame(Renderer &renderer, const Game &game) {
         }
         x.wallFade = viewGame.wallFade;
         float laserLength=0;
-        auto muzzle=renderer.weapons.muzzle(player.gun_selected);
+        auto socket=renderer.weapons.muzzlePose(player.gun_selected,player.gun_frame);
+        auto muzzle=socket.position;
         if(x.tracking.valid[1] && (!game.overlay || !game.overlay->menu)){
-            auto ray=weaponRay(x.tracking.hands[1],muzzle);
+            auto ray=weaponRay(x.tracking.hands[1],muzzle,socket.direction);
             float dx=ray.origin.x-x.anchor.x,dz=ray.origin.z-x.anchor.z;
             auto offset=engineVector({dx,0,dz},bodyYaw,anchorYaw);
             float ox=bodyX+offset.x*32,oz=bodyZ+offset.z*32;
@@ -610,7 +611,7 @@ bool XR::frame(Renderer &renderer, const Game &game) {
                             glDepthMask(GL_FALSE);glColor4f(1,.18f,.035f,.8f);glLineWidth(2);
                             glBegin(GL_LINES);
                             glVertex3f(muzzle[0],muzzle[1],muzzle[2]);
-                            glVertex3f(muzzle[0],muzzle[1],muzzle[2]-laserLength);
+                            glVertex3f(muzzle[0]+socket.direction[0]*laserLength,muzzle[1]+socket.direction[1]*laserLength,muzzle[2]+socket.direction[2]*laserLength);
                             glEnd();glPopAttrib();++renderer.laserDraws;
                         }
                     } else {

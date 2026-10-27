@@ -7,13 +7,21 @@ from pathlib import Path
 import json
 import math
 import struct
+import sys
 import bpy
 from mathutils import Vector
 
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'xr/assets/weapons'
 DATA=json.loads((OUT/'reconstruction.json').read_text())
-SCENE_NAME='AB3DI Sprite Weapon Reconstructions'
+DATA['weapons']=[w for w in DATA['weapons'] if w['slot'] in (0,1,2,4,7)]
+SURFACES=json.loads((OUT/'surfaces.json').read_text())
+for item in DATA['weapons']:item['surface_tiles']=next(w for w in SURFACES['weapons'] if w['name']==item['name'])
+sys.path.insert(0,str(Path(__file__).parent))
+import weapon_geometry
+import importlib
+importlib.reload(weapon_geometry)
+SCENE_NAME='AB3DI Reconstructed Weapons v2'
 if bpy.data.scenes.get(SCENE_NAME):
     raise RuntimeError('Reconstruction scene already exists; keep edits and use a fresh Blender for regeneration')
 scene=bpy.data.scenes.new(SCENE_NAME)
@@ -45,7 +53,7 @@ def empty(name,parent=None,collection=models):
 def material(name,path,emission=0,alpha=False):
     mat=bpy.data.materials.new(name);mat.use_nodes=True
     shader=next(n for n in mat.node_tree.nodes if n.type=='BSDF_PRINCIPLED')
-    image=bpy.data.images.load(str(path),check_existing=True);image.pack()
+    image=bpy.data.images.load(str(path),check_existing=True);image.reload();image.pack()
     tex=mat.node_tree.nodes.new('ShaderNodeTexImage');tex.image=image
     choices=[i.identifier for i in tex.bl_rna.properties['interpolation'].enum_items]
     tex.interpolation=next(x for x in choices if x.lower()=='closest')
@@ -64,7 +72,10 @@ def mesh(name,verts,faces,parent,mat,swatch=None,item=None):
     data=bpy.data.meshes.new(name);data.from_pydata(verts,[],faces);data.update()
     obj=bpy.data.objects.new(name,data);models.objects.link(obj);obj.parent=parent
     data.materials.append(mat)
-    uv=data.uv_layers.new(name='Original sprite projection')
+    uv=data.uv_layers.new(name='Original palette surface islands')
+    if item and item.get('surface_tiles'):
+        weapon_geometry.surface_uv(data,item,swatch)
+        return obj
     if item:lo,top,right,bottom=item['sprite_bounds'];length=item['size_m'][1];width=item['size_m'][0]
     for poly in data.polygons:
         for li in poly.loop_indices:
@@ -122,15 +133,10 @@ def tube(name,points,r,parent,mat,item,swatch=None):
     return mesh(name,verts,faces,parent,mat,swatch,item)
 
 
-def grip(root,mat,item,y=-.01):
-    profile('Grip',[(y-.05,.065,.11,-.035),(y+.01,.065,.15,-.02)],root,mat,item,0)
-    tube('Trigger guard',[(0,y+.02,.055),(0,y+.09,.025),(0,y+.09,-.025),(0,y+.01,-.045)],.007,root,mat,item,1)
-    box('Trigger',(0,y+.045,.009),(.012,.012,.038),root,mat,item,2)
-
-
 def flash_plane(item,frame,root,muzzle):
     path=OUT/'textures'/f'{item["name"]}-flash-{frame}.png'
     im=bpy.data.images.load(str(path),check_existing=True)
+    im.reload()
     pixels=list(im.pixels);w,h=map(int,im.size)
     points=[(i%w,i//w) for i in range(w*h) if pixels[i*4+3]>.5]
     if not points:return None
@@ -146,105 +152,6 @@ def flash_plane(item,frame,root,muzzle):
     uvs=[(lo/w,bottom/h),(right/w,bottom/h),(right/w,top/h),(lo/w,top/h)]*2
     for uv,v in zip(o.data.uv_layers.active.data,uvs):uv.uv=v
     return o
-
-
-def reconstruct(item):
-    name=item['name'];root=empty(name);root['weapon_slot']=item['slot'];root['source']='AB3D I sprite reconstruction; TKG shape references where available'
-    root['forward']='Blender +Y; glTF -Z';root['grip_origin']='metres, at root';root['approximation']='Hidden surfaces inferred, not recovered from a single sprite view'
-    mat=material(name+' original sprite atlas',OUT/'textures'/f'{name}-sprite-atlas.png',.18)
-    glow=material(name+' sprite accent',OUT/'textures'/f'{name}-sprite-atlas.png',.65)
-    pump=None
-    if name=='pistol':
-        profile('Receiver',[(-.07,.09,.085,.075),(.08,.11,.10,.08),(.17,.075,.075,.085)],root,mat,item)
-        barrel('Barrel',[(.07,.027),(.28,.024),(.31,.034),(.34,.034),(.34,.018),(.32,.018)],0,.10,root,mat,item,2)
-        barrel('Bore',[(.322,.017),(.323,.017)],0,.10,root,mat,item,0)
-        box('Green top panel',(0,.04,.137),(.07,.12,.014),root,glow,item,3)
-        box('Rear sight',(0,-.04,.15),(.065,.014,.012),root,mat,item,0)
-        box('Front sight',(0,.30,.14),(.014,.02,.025),root,mat,item,2);grip(root,mat,item)
-        muzzle=(0,.342,.10)
-    elif name=='plasma':
-        profile('Receiver',[(-.11,.15,.10,.075),(.05,.18,.12,.09),(.20,.105,.10,.10)],root,mat,item)
-        barrel('Emitter',[(.05,.032),(.40,.023),(.45,.045),(.48,.04)],0,.11,root,mat,item,2)
-        barrel('Blue energy core',[(.14,.025),(.40,.025)],0,.11,root,glow,item,3)
-        barrel('Emitter face',[(.481,.027),(.482,.027)],0,.11,root,glow,item,3)
-        for side in (-1,1):
-            tube('Side prong',[(side*.07,.04,.12),(side*.095,.20,.14),(side*.09,.36,.16),(side*.05,.46,.14)],.014,root,mat,item,2)
-            for y in (.13,.23,.33):barrel('Prong collar',[(y,.023),(y+.02,.023)],side*.09,.14,root,mat,item,0)
-        grip(root,mat,item);muzzle=(0,.482,.11)
-    elif name=='rocket':
-        barrel('Launcher tube',[(-.15,.10),(-.10,.12),(.02,.112),(.47,.10),(.62,.115),(.68,.11),(.68,.075),(.63,.075)],0,.12,root,mat,item)
-        barrel('Dark bore',[(.631,.074),(.632,.074)],0,.12,root,mat,item,0)
-        for y in (.02,.18,.41):barrel('Tube band',[(y,.115),(y+.025,.115)],0,.12,root,mat,item,3)
-        box('Sight',(0,.10,.255),(.055,.20,.035),root,mat,item,0)
-        box('Green sight display',(0,.04,.278),(.035,.055,.008),root,glow,item,3)
-        grip(root,mat,item,.04);box('Forward grip',(0,.40,-.025),(.055,.07,.16),root,mat,item,0);muzzle=(0,.682,.12)
-    elif name=='flamethrower':
-        profile('Fuel manifold',[(-.08,.13,.10,.08),(.14,.15,.13,.09),(.25,.08,.08,.10)],root,mat,item)
-        for side in (-1,1):
-            barrel('Copper fuel chamber',[(-.06,.026),(-.02,.038),(.18,.038),(.22,.025)],side*.056,.075,root,mat,item,3)
-            tube('Fuel hose',[(side*.07,.08,.04),(side*.07,.16,-.04),(side*.04,.31,-.02),(side*.015,.36,.08)],.009,root,mat,item,0)
-        barrel('Nozzle',[(.16,.03),(.39,.02),(.43,.034),(.48,.026),(.48,.014),(.46,.014)],0,.12,root,mat,item,2)
-        barrel('Pilot flame tip',[(.43,.004),(.49,.004)],.02,.12,root,glow,item,3)
-        grip(root,mat,item);muzzle=(0,.482,.12)
-    elif name=='grenade':
-        profile('Breech',[(-.10,.10,.095,.08),(.07,.13,.12,.09),(.20,.10,.10,.10)],root,mat,item)
-        barrel('Grenade barrel',[(.10,.057),(.43,.05),(.50,.065),(.53,.062),(.53,.042),(.49,.042)],0,.12,root,mat,item,2)
-        barrel('Bore',[(.491,.041),(.492,.041)],0,.12,root,mat,item,0)
-        pump=barrel('Sliding foregrip',[(.17,.06),(.33,.06)],0,.12,root,mat,item,1)
-        for y in (.19,.23,.27,.31):barrel('Foregrip ridge',[(y,.064),(y+.01,.064)],0,.12,pump,mat,item,0)
-        box('Top sight',(0,.32,.19),(.015,.16,.014),root,mat,item,1);grip(root,mat,item);muzzle=(0,.532,.12)
-    else:
-        profile('Shotgun receiver',[(-.10,.085,.09,.075),(.08,.085,.095,.08),(.17,.07,.075,.09)],root,mat,item)
-        for x in (-.026,.026):
-            barrel('Twin barrel',[(.08,.021),(.78,.021),(.82,.024),(.82,.015),(.79,.015)],x,.12,root,mat,item,2)
-            barrel('Bore',[(.791,.014),(.792,.014)],x,.12,root,mat,item,0)
-        profile('Stock',[(-.24,.07,.105,.015),(-.10,.07,.08,.05)],root,mat,item,3)
-        pump=profile('Pump',[(.28,.085,.06,.08),(.43,.085,.06,.08)],root,mat,item,3)
-        for y in (.30,.33,.36,.39):box('Pump groove',(0,y,.048),(.088,.008,.009),pump,mat,item,0)
-        box('Rib sight',(0,.53,.147),(.01,.54,.008),root,mat,item,1);grip(root,mat,item);muzzle=(0,.822,.12)
-    marker=empty('muzzle',root);marker.location=muzzle
-    marker['purpose']='Shot origin and forward direction; +Y before glTF axis conversion'
-    grip_marker=empty('grip',root);grip_marker['socket']='grip';marker['socket']='muzzle'
-    flashes={f:flash_plane(item,f,root,muzzle) for f in (2,3)}
-    motion=empty('motion_reference',root);motion['purpose']='Sprite measurements retained in reconstruction.json'
-    # Core glTF has no animated texture-index property. Four UV variants use
-    # standard STEP scale tracks instead, preserving each original sprite's
-    # appearance without requiring a custom shader or extension.
-    body=[o for o in list(root.children) if o.type=='MESH' and o not in flashes.values()]
-    variants=[];pumps=[]
-    original_children={o:list(o.children) for o in root.children_recursive}
-    for frame in range(4):
-        variant=empty('sprite_frame_'+str(frame),root);variants.append(variant)
-        lo,top,right,bottom=item['sprite_bounds'];fl,ft,fr,fb=item['sprite_bounds_per_frame'][frame]
-        def duplicate(original,parent):
-            if frame==0:
-                obj=original;obj.parent=parent
-            else:
-                obj=original.copy();obj.data=original.data.copy();models.objects.link(obj);obj.parent=parent
-                if obj.type=='MESH':
-                    for uv in obj.data.uv_layers.active.data:
-                        px=uv.uv.x*384;py=(1-uv.uv.y)*74
-                        if py<58:
-                            px=fl+(px-lo)/(right-lo)*(fr-fl)
-                            py=ft+(py-top)/(bottom-top)*(fb-ft)
-                        uv.uv=((px+frame*96)/384,1-py/74)
-            if original==pump:pumps.append(obj)
-            for child in original_children.get(original,[]):duplicate(child,obj)
-            return obj
-        for original in body:duplicate(original,variant)
-    # Batch static pieces per sprite state; keep the sliding foregrip separate.
-    def join_parts(parts,active):
-        bpy.ops.object.select_all(action='DESELECT')
-        for part in parts:part.select_set(True)
-        bpy.context.view_layer.objects.active=active
-        if len(parts)>1:bpy.ops.object.join()
-    for variant in variants:
-        static=[o for o in variant.children if o.type=='MESH' and o not in pumps]
-        if static:join_parts(static,static[0]);static[0].name='Body sprite variant'
-    for moving in pumps:
-        pieces=[moving]+[o for o in moving.children_recursive if o.type=='MESH']
-        join_parts(pieces,moving)
-    return root,pumps,flashes,variants
 
 
 def key(obj,path,frame):obj.keyframe_insert(data_path=path,frame=frame,group='Fire')
@@ -286,7 +193,7 @@ def finalize_glb(path):
 
 # Build all models and hidden source references before exporting each hierarchy.
 for item in DATA['weapons']:
-    root,pumps,flashes,variants=reconstruct(item);roots.append(root)
+    root,pumps,flashes,variants=weapon_geometry.reconstruct(item,globals());roots.append(root)
     reference=item.get('tkg_reference')
     if reference:
         verts=reference['vertices'];mins=[min(v[k] for v in verts) for k in range(3)];maxs=[max(v[k] for v in verts) for k in range(3)]
@@ -302,16 +209,30 @@ for item in DATA['weapons']:
     # Exact countdown sequence from the engine, sampled at its 50 Hz tick rate.
     scene.frame_start=0;scene.frame_end=len(item['sequence'])-1
     base=item['poses'][0];pose=item['poses']
+    muzzle_node=next(o for o in root.children if o.get('socket')=='muzzle')
+    rest_muzzle=muzzle_node.location.copy()
     for frame,sprite in enumerate(item['sequence']):
-        delta_x=(pose[sprite]['center'][0]-base['center'][0])/96
-        delta_y=(pose[sprite]['center'][1]-base['center'][1])/58
-        roll=max(-.5,min(.5,pose[sprite]['axis_angle']-base['axis_angle']))
-        root.location=(delta_x*.22, -abs(delta_y)*.08-(.018 if sprite==3 else 0),-delta_y*.12)
-        root.rotation_mode='XYZ';root.rotation_euler=(delta_y*.35,roll*.65,0)
+        delta_x=max(-.006,min(.006,(pose[sprite]['center'][0]-base['center'][0])*.001))
+        recoil=max(0,1-frame/max(1,min(len(item['sequence'])-1,8)))
+        amount={0:.018,1:.016,2:.034,4:.032,7:.042}[item['slot']]
+        root.location=(delta_x,-recoil*amount,recoil*amount*.22)
+        root.rotation_mode='XYZ';root.rotation_euler=(recoil*amount*3,0,0)
         key(root,'location',frame);key(root,'rotation_euler',frame)
+        opening=-.48 if sprite==1 else (-.14 if sprite==2 and frame<len(item['sequence'])*.55 else 0)
         for pump in pumps:
-            pump.location.y=-.065 if sprite==1 else (-.025 if sprite==2 else 0)
-            key(pump,'location',frame)
+            if pump.get('mechanism')=='break_action':
+                pump.rotation_euler.x=opening
+                key(pump,'rotation_euler',frame)
+            else:
+                travel=.052 if pump.get('mechanism')=='pump' else .018
+                pump.location.y=-travel if sprite==1 else (-travel*.4 if sprite==2 else 0)
+                key(pump,'location',frame)
+        if item['slot']==7:
+            from mathutils import Matrix
+            hinge=Vector((0,.126,.10))
+            muzzle_node.location=hinge+Matrix.Rotation(opening,3,'X')@(rest_muzzle-hinge)
+            muzzle_node.rotation_euler.x=opening
+            key(muzzle_node,'location',frame);key(muzzle_node,'rotation_euler',frame)
         for which,variant in enumerate(variants):
             variant.scale=(1,1,1) if sprite==which else (.0001,.0001,.0001)
             key(variant,'scale',frame)
@@ -346,7 +267,8 @@ for item in DATA['weapons']:
     triangles=sum(sum(len(p.vertices)-2 for p in o.data.polygons) for o in objects)
     visible_triangles=max(sum(sum(len(p.vertices)-2 for p in o.data.polygons) for o in v.children_recursive if o.type=='MESH') for v in variants)+4
     report.append(dict(name=item['name'],slot=item['slot'],mesh_objects=len(objects),triangles_all_variants=triangles,visible_triangles_max=visible_triangles,
-        duration_s=item['duration_s'],reference=reference['name'] if reference else None))
+        duration_s=item['duration_s'],reference=reference['name'] if reference else None,
+        reconstruction_version=2,surface_atlas=item['surface_tiles']['atlas'],hand_pixels_removed=item['surface_tiles']['hand_pixels_removed']))
     # Remove source-only layout animation from viewport placement by using an
     # additional unanimated display parent, outside exported hierarchies.
     display=empty(item['name']+' display placement');root.parent=display
@@ -364,7 +286,7 @@ for name,location,power,size in [('Key',(.5,-1.2,3.8),250,3.5),('Fill',(3,2,2.8)
     o=bpy.data.objects.new(name,ld);rig.objects.link(o);o.location=location;o.rotation_euler=(target-o.location).to_track_quat('-Z','Y').to_euler()
 # Human-readable labels stay out of each glTF file.
 for i,item in enumerate(DATA['weapons']):
-    curve=bpy.data.curves.new(item['name']+' label','FONT');curve.body=item['name'].upper();curve.size=.06
+    curve=bpy.data.curves.new(item['name']+' label','FONT');curve.body={0:'PULSE RIFLE',1:'MACHINE GUN',2:'ROCKET LAUNCHER',4:'GRENADE LAUNCHER',7:'DOUBLE BARREL SHOTGUN'}[item['slot']];curve.size=.045
     obj=bpy.data.objects.new(item['name']+' label',curve);rig.objects.link(obj);obj.location=((i%3)*1.05-.25,2.17 if i//3 else -.34,-.13)
 for area in bpy.context.screen.areas:
     if area.type=='VIEW_3D':
@@ -373,4 +295,4 @@ for area in bpy.context.screen.areas:
 scene.render.filepath=str(OUT/'overview.png')
 (OUT/'build-report.json').write_text(json.dumps({'blender':bpy.app.version_string,'weapons':report},indent=2)+'\n')
 bpy.ops.wm.save_as_mainfile(filepath=str(OUT/'ab3di-sprite-weapons.blend'),compress=True)
-print('Built and exported six sprite-textured animated weapon reconstructions',report)
+print('Built and exported five detailed original-palette weapon reconstructions',report)

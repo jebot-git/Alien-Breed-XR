@@ -4,56 +4,62 @@
     {
       "name": "pistol",
       "slot": 0,
-      "mesh_objects": 5,
-      "triangles_all_variants": 1716,
-      "visible_triangles_max": 432,
+      "mesh_objects": 9,
+      "triangles_all_variants": 4612,
+      "visible_triangles_max": 1156,
       "duration_s": 0.06,
-      "reference": "pistol"
+      "reference": "pistol",
+      "reconstruction_version": 2,
+      "surface_atlas": "textures/pistol-surfaces.png",
+      "hand_pixels_removed": 25
     },
     {
       "name": "plasma",
       "slot": 1,
-      "mesh_objects": 6,
-      "triangles_all_variants": 2904,
-      "visible_triangles_max": 728,
+      "mesh_objects": 10,
+      "triangles_all_variants": 6056,
+      "visible_triangles_max": 1516,
       "duration_s": 0.1,
-      "reference": "plasmagun"
+      "reference": "plasmagun",
+      "reconstruction_version": 2,
+      "surface_atlas": "textures/plasma-surfaces.png",
+      "hand_pixels_removed": 0
     },
     {
       "name": "rocket",
       "slot": 2,
       "mesh_objects": 5,
-      "triangles_all_variants": 2260,
-      "visible_triangles_max": 568,
+      "triangles_all_variants": 6932,
+      "visible_triangles_max": 1736,
       "duration_s": 0.1,
-      "reference": "rocketlauncher"
-    },
-    {
-      "name": "flamethrower",
-      "slot": 3,
-      "mesh_objects": 5,
-      "triangles_all_variants": 2596,
-      "visible_triangles_max": 652,
-      "duration_s": 0.1,
-      "reference": null
+      "reference": "rocketlauncher",
+      "reconstruction_version": 2,
+      "surface_atlas": "textures/rocket-surfaces.png",
+      "hand_pixels_removed": 5
     },
     {
       "name": "grenade",
       "slot": 4,
       "mesh_objects": 8,
-      "triangles_all_variants": 2368,
-      "visible_triangles_max": 596,
+      "triangles_all_variants": 5088,
+      "visible_triangles_max": 1276,
       "duration_s": 0.24,
-      "reference": "grenadelauncher"
+      "reference": "grenadelauncher",
+      "reconstruction_version": 2,
+      "surface_atlas": "textures/grenade-surfaces.png",
+      "hand_pixels_removed": 10
     },
     {
       "name": "shotgun",
       "slot": 7,
       "mesh_objects": 9,
-      "triangles_all_variants": 2708,
-      "visible_triangles_max": 680,
+      "triangles_all_variants": 5380,
+      "visible_triangles_max": 1348,
       "duration_s": 1.26,
-      "reference": "shotgun"
+      "reference": "shotgun",
+      "reconstruction_version": 2,
+      "surface_atlas": "textures/shotgun-surfaces.png",
+      "hand_pixels_removed": 33
     }
   ]
 }

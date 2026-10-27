@@ -1,0 +1,1337 @@
+{
+  "version": 2,
+  "texel_filter": "nearest",
+  "source": "Original AB3D I sprites; authored depth and missing surfaces",
+  "weapons": [
+    {
+      "name": "pistol",
+      "atlas": "textures/pistol-surfaces.png",
+      "atlas_size": [
+        1024,
+        256
+      ],
+      "tiles": [
+        "receiver_side",
+        "receiver_top",
+        "receiver_end",
+        "steel",
+        "rubber",
+        "vents",
+        "accent",
+        "dark",
+        "barrel",
+        "bore",
+        "bolts",
+        "panel",
+        "stock",
+        "heatshield",
+        "marking",
+        "edge"
+      ],
+      "palette": [
+        [
+          17,
+          17,
+          17
+        ],
+        [
+          17,
+          34,
+          102
+        ],
+        [
+          34,
+          34,
+          34
+        ],
+        [
+          34,
+          68,
+          0
+        ],
+        [
+          51,
+          51,
+          51
+        ],
+        [
+          51,
+          119,
+          34
+        ],
+        [
+          68,
+          68,
+          68
+        ],
+        [
+          85,
+          85,
+          85
+        ],
+        [
+          85,
+          85,
+          170
+        ],
+        [
+          102,
+          102,
+          102
+        ],
+        [
+          119,
+          119,
+          119
+        ],
+        [
+          136,
+          136,
+          136
+        ],
+        [
+          153,
+          153,
+          153
+        ],
+        [
+          170,
+          170,
+          221
+        ],
+        [
+          221,
+          221,
+          221
+        ]
+      ],
+      "hand_pixels_removed": 25,
+      "source_rows": [
+        {
+          "y": 43,
+          "left": 43,
+          "right": 51,
+          "width": 9
+        },
+        {
+          "y": 44,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 45,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 46,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 47,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 48,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 49,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 50,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 51,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 52,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 53,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 54,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 55,
+          "left": 40,
+          "right": 54,
+          "width": 15
+        },
+        {
+          "y": 56,
+          "left": 40,
+          "right": 54,
+          "width": 15
+        },
+        {
+          "y": 57,
+          "left": 40,
+          "right": 54,
+          "width": 15
+        }
+      ],
+      "source_sha256": "ae69d32a38bd6ed81c56085058438162e94b0c63b19be75920e0bf34fcb4e4fc",
+      "depth_model": "Authored longitudinal depth plus rounded transverse sections; single-view inference, not measured hidden geometry",
+      "hidden_surfaces": "Continuous hard-surface panels, inset seams, grip ribs, bores and fasteners; hand colours excluded"
+    },
+    {
+      "name": "shotgun",
+      "atlas": "textures/shotgun-surfaces.png",
+      "atlas_size": [
+        1024,
+        256
+      ],
+      "tiles": [
+        "receiver_side",
+        "receiver_top",
+        "receiver_end",
+        "steel",
+        "rubber",
+        "vents",
+        "accent",
+        "dark",
+        "barrel",
+        "bore",
+        "bolts",
+        "panel",
+        "stock",
+        "heatshield",
+        "marking",
+        "edge"
+      ],
+      "palette": [
+        [
+          17,
+          17,
+          17
+        ],
+        [
+          34,
+          34,
+          34
+        ],
+        [
+          51,
+          51,
+          51
+        ],
+        [
+          68,
+          68,
+          68
+        ],
+        [
+          85,
+          85,
+          85
+        ],
+        [
+          102,
+          102,
+          102
+        ],
+        [
+          119,
+          119,
+          119
+        ],
+        [
+          136,
+          136,
+          136
+        ],
+        [
+          153,
+          153,
+          153
+        ],
+        [
+          170,
+          170,
+          170
+        ],
+        [
+          187,
+          187,
+          187
+        ]
+      ],
+      "hand_pixels_removed": 33,
+      "source_rows": [
+        {
+          "y": 40,
+          "left": 45,
+          "right": 49,
+          "width": 5
+        },
+        {
+          "y": 41,
+          "left": 44,
+          "right": 50,
+          "width": 7
+        },
+        {
+          "y": 42,
+          "left": 43,
+          "right": 51,
+          "width": 9
+        },
+        {
+          "y": 43,
+          "left": 43,
+          "right": 51,
+          "width": 9
+        },
+        {
+          "y": 44,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 45,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 46,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 47,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 48,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 49,
+          "left": 40,
+          "right": 54,
+          "width": 15
+        },
+        {
+          "y": 50,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 51,
+          "left": 40,
+          "right": 54,
+          "width": 15
+        },
+        {
+          "y": 52,
+          "left": 39,
+          "right": 55,
+          "width": 17
+        },
+        {
+          "y": 53,
+          "left": 40,
+          "right": 54,
+          "width": 15
+        },
+        {
+          "y": 54,
+          "left": 40,
+          "right": 54,
+          "width": 15
+        },
+        {
+          "y": 55,
+          "left": 39,
+          "right": 55,
+          "width": 17
+        },
+        {
+          "y": 56,
+          "left": 39,
+          "right": 55,
+          "width": 17
+        },
+        {
+          "y": 57,
+          "left": 39,
+          "right": 55,
+          "width": 17
+        }
+      ],
+      "source_sha256": "284f7e3c008a8bcdd690267cba4dc8f3d76bccbe44e6a3972dedc736c141fa92",
+      "depth_model": "Authored longitudinal depth plus rounded transverse sections; single-view inference, not measured hidden geometry",
+      "hidden_surfaces": "Continuous hard-surface panels, inset seams, grip ribs, bores and fasteners; hand colours excluded"
+    },
+    {
+      "name": "plasma",
+      "atlas": "textures/plasma-surfaces.png",
+      "atlas_size": [
+        1024,
+        256
+      ],
+      "tiles": [
+        "receiver_side",
+        "receiver_top",
+        "receiver_end",
+        "steel",
+        "rubber",
+        "vents",
+        "accent",
+        "dark",
+        "barrel",
+        "bore",
+        "bolts",
+        "panel",
+        "stock",
+        "heatshield",
+        "marking",
+        "edge"
+      ],
+      "palette": [
+        [
+          0,
+          17,
+          51
+        ],
+        [
+          17,
+          17,
+          17
+        ],
+        [
+          17,
+          34,
+          102
+        ],
+        [
+          34,
+          34,
+          34
+        ],
+        [
+          51,
+          51,
+          51
+        ],
+        [
+          68,
+          68,
+          68
+        ],
+        [
+          85,
+          85,
+          85
+        ],
+        [
+          85,
+          85,
+          170
+        ],
+        [
+          102,
+          102,
+          102
+        ],
+        [
+          119,
+          119,
+          119
+        ],
+        [
+          136,
+          136,
+          136
+        ],
+        [
+          153,
+          153,
+          153
+        ],
+        [
+          170,
+          170,
+          170
+        ],
+        [
+          170,
+          170,
+          221
+        ],
+        [
+          255,
+          255,
+          255
+        ]
+      ],
+      "hand_pixels_removed": 0,
+      "source_rows": [
+        {
+          "y": 36,
+          "left": 45,
+          "right": 49,
+          "width": 5
+        },
+        {
+          "y": 37,
+          "left": 43,
+          "right": 51,
+          "width": 9
+        },
+        {
+          "y": 38,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 39,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 40,
+          "left": 37,
+          "right": 57,
+          "width": 21
+        },
+        {
+          "y": 41,
+          "left": 36,
+          "right": 58,
+          "width": 23
+        },
+        {
+          "y": 42,
+          "left": 36,
+          "right": 58,
+          "width": 23
+        },
+        {
+          "y": 43,
+          "left": 35,
+          "right": 59,
+          "width": 25
+        },
+        {
+          "y": 44,
+          "left": 35,
+          "right": 59,
+          "width": 25
+        },
+        {
+          "y": 45,
+          "left": 34,
+          "right": 60,
+          "width": 27
+        },
+        {
+          "y": 46,
+          "left": 34,
+          "right": 60,
+          "width": 27
+        },
+        {
+          "y": 47,
+          "left": 34,
+          "right": 60,
+          "width": 27
+        },
+        {
+          "y": 48,
+          "left": 34,
+          "right": 60,
+          "width": 27
+        },
+        {
+          "y": 49,
+          "left": 34,
+          "right": 60,
+          "width": 27
+        },
+        {
+          "y": 50,
+          "left": 35,
+          "right": 59,
+          "width": 25
+        },
+        {
+          "y": 51,
+          "left": 35,
+          "right": 59,
+          "width": 25
+        },
+        {
+          "y": 52,
+          "left": 36,
+          "right": 58,
+          "width": 23
+        },
+        {
+          "y": 53,
+          "left": 37,
+          "right": 57,
+          "width": 21
+        },
+        {
+          "y": 54,
+          "left": 37,
+          "right": 57,
+          "width": 21
+        },
+        {
+          "y": 55,
+          "left": 37,
+          "right": 57,
+          "width": 21
+        },
+        {
+          "y": 56,
+          "left": 37,
+          "right": 57,
+          "width": 21
+        },
+        {
+          "y": 57,
+          "left": 36,
+          "right": 58,
+          "width": 23
+        }
+      ],
+      "source_sha256": "e905a1740da4c8fb6ad0e55cd222a9a3d044493ea9a6cc5f88e0cb62335da0e4",
+      "depth_model": "Authored longitudinal depth plus rounded transverse sections; single-view inference, not measured hidden geometry",
+      "hidden_surfaces": "Continuous hard-surface panels, inset seams, grip ribs, bores and fasteners; hand colours excluded"
+    },
+    {
+      "name": "grenade",
+      "atlas": "textures/grenade-surfaces.png",
+      "atlas_size": [
+        1024,
+        256
+      ],
+      "tiles": [
+        "receiver_side",
+        "receiver_top",
+        "receiver_end",
+        "steel",
+        "rubber",
+        "vents",
+        "accent",
+        "dark",
+        "barrel",
+        "bore",
+        "bolts",
+        "panel",
+        "stock",
+        "heatshield",
+        "marking",
+        "edge"
+      ],
+      "palette": [
+        [
+          17,
+          17,
+          17
+        ],
+        [
+          34,
+          34,
+          34
+        ],
+        [
+          51,
+          51,
+          51
+        ],
+        [
+          68,
+          68,
+          68
+        ],
+        [
+          85,
+          85,
+          85
+        ],
+        [
+          102,
+          102,
+          102
+        ],
+        [
+          119,
+          119,
+          119
+        ],
+        [
+          136,
+          136,
+          136
+        ],
+        [
+          153,
+          153,
+          153
+        ],
+        [
+          170,
+          170,
+          170
+        ],
+        [
+          187,
+          187,
+          187
+        ]
+      ],
+      "hand_pixels_removed": 10,
+      "source_rows": [
+        {
+          "y": 36,
+          "left": 45,
+          "right": 49,
+          "width": 5
+        },
+        {
+          "y": 37,
+          "left": 44,
+          "right": 50,
+          "width": 7
+        },
+        {
+          "y": 38,
+          "left": 43,
+          "right": 51,
+          "width": 9
+        },
+        {
+          "y": 39,
+          "left": 43,
+          "right": 51,
+          "width": 9
+        },
+        {
+          "y": 40,
+          "left": 43,
+          "right": 51,
+          "width": 9
+        },
+        {
+          "y": 41,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 42,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 43,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 44,
+          "left": 42,
+          "right": 52,
+          "width": 11
+        },
+        {
+          "y": 45,
+          "left": 41,
+          "right": 53,
+          "width": 13
+        },
+        {
+          "y": 46,
+          "left": 39,
+          "right": 55,
+          "width": 17
+        },
+        {
+          "y": 47,
+          "left": 37,
+          "right": 57,
+          "width": 21
+        },
+        {
+          "y": 48,
+          "left": 36,
+          "right": 58,
+          "width": 23
+        },
+        {
+          "y": 49,
+          "left": 35,
+          "right": 59,
+          "width": 25
+        },
+        {
+          "y": 50,
+          "left": 35,
+          "right": 59,
+          "width": 25
+        },
+        {
+          "y": 51,
+          "left": 34,
+          "right": 60,
+          "width": 27
+        },
+        {
+          "y": 52,
+          "left": 34,
+          "right": 60,
+          "width": 27
+        },
+        {
+          "y": 53,
+          "left": 33,
+          "right": 61,
+          "width": 29
+        },
+        {
+          "y": 54,
+          "left": 33,
+          "right": 61,
+          "width": 29
+        },
+        {
+          "y": 55,
+          "left": 33,
+          "right": 61,
+          "width": 29
+        },
+        {
+          "y": 56,
+          "left": 33,
+          "right": 61,
+          "width": 29
+        },
+        {
+          "y": 57,
+          "left": 33,
+          "right": 61,
+          "width": 29
+        }
+      ],
+      "source_sha256": "d91409c6d93e3c3647fabfcc2869d219d132c75545b50cc99dcf9acf9b0922f9",
+      "depth_model": "Authored longitudinal depth plus rounded transverse sections; single-view inference, not measured hidden geometry",
+      "hidden_surfaces": "Continuous hard-surface panels, inset seams, grip ribs, bores and fasteners; hand colours excluded"
+    },
+    {
+      "name": "rocket",
+      "atlas": "textures/rocket-surfaces.png",
+      "atlas_size": [
+        1024,
+        256
+      ],
+      "tiles": [
+        "receiver_side",
+        "receiver_top",
+        "receiver_end",
+        "steel",
+        "rubber",
+        "vents",
+        "accent",
+        "dark",
+        "barrel",
+        "bore",
+        "bolts",
+        "panel",
+        "stock",
+        "heatshield",
+        "marking",
+        "edge"
+      ],
+      "palette": [
+        [
+          17,
+          17,
+          17
+        ],
+        [
+          34,
+          34,
+          34
+        ],
+        [
+          34,
+          68,
+          0
+        ],
+        [
+          51,
+          51,
+          51
+        ],
+        [
+          51,
+          119,
+          34
+        ],
+        [
+          68,
+          68,
+          68
+        ],
+        [
+          85,
+          85,
+          85
+        ],
+        [
+          102,
+          102,
+          102
+        ],
+        [
+          102,
+          187,
+          102
+        ],
+        [
+          119,
+          119,
+          119
+        ],
+        [
+          136,
+          136,
+          136
+        ],
+        [
+          153,
+          153,
+          153
+        ],
+        [
+          170,
+          170,
+          170
+        ],
+        [
+          187,
+          187,
+          187
+        ],
+        [
+          204,
+          204,
+          204
+        ],
+        [
+          221,
+          221,
+          221
+        ],
+        [
+          238,
+          238,
+          238
+        ],
+        [
+          255,
+          255,
+          255
+        ]
+      ],
+      "hand_pixels_removed": 5,
+      "source_rows": [
+        {
+          "y": 0,
+          "left": 95,
+          "right": 95,
+          "width": 1
+        },
+        {
+          "y": 1,
+          "left": 94,
+          "right": 95,
+          "width": 2
+        },
+        {
+          "y": 2,
+          "left": 92,
+          "right": 95,
+          "width": 4
+        },
+        {
+          "y": 3,
+          "left": 91,
+          "right": 95,
+          "width": 5
+        },
+        {
+          "y": 4,
+          "left": 90,
+          "right": 95,
+          "width": 6
+        },
+        {
+          "y": 5,
+          "left": 89,
+          "right": 95,
+          "width": 7
+        },
+        {
+          "y": 6,
+          "left": 88,
+          "right": 95,
+          "width": 8
+        },
+        {
+          "y": 7,
+          "left": 86,
+          "right": 95,
+          "width": 10
+        },
+        {
+          "y": 8,
+          "left": 85,
+          "right": 95,
+          "width": 11
+        },
+        {
+          "y": 9,
+          "left": 84,
+          "right": 95,
+          "width": 12
+        },
+        {
+          "y": 10,
+          "left": 83,
+          "right": 95,
+          "width": 13
+        },
+        {
+          "y": 11,
+          "left": 82,
+          "right": 95,
+          "width": 14
+        },
+        {
+          "y": 12,
+          "left": 80,
+          "right": 95,
+          "width": 16
+        },
+        {
+          "y": 13,
+          "left": 79,
+          "right": 95,
+          "width": 17
+        },
+        {
+          "y": 14,
+          "left": 78,
+          "right": 95,
+          "width": 18
+        },
+        {
+          "y": 15,
+          "left": 77,
+          "right": 95,
+          "width": 19
+        },
+        {
+          "y": 16,
+          "left": 76,
+          "right": 95,
+          "width": 20
+        },
+        {
+          "y": 17,
+          "left": 75,
+          "right": 95,
+          "width": 21
+        },
+        {
+          "y": 18,
+          "left": 75,
+          "right": 95,
+          "width": 21
+        },
+        {
+          "y": 19,
+          "left": 74,
+          "right": 95,
+          "width": 22
+        },
+        {
+          "y": 20,
+          "left": 74,
+          "right": 95,
+          "width": 22
+        },
+        {
+          "y": 21,
+          "left": 73,
+          "right": 95,
+          "width": 23
+        },
+        {
+          "y": 22,
+          "left": 72,
+          "right": 95,
+          "width": 24
+        },
+        {
+          "y": 23,
+          "left": 72,
+          "right": 95,
+          "width": 24
+        },
+        {
+          "y": 24,
+          "left": 71,
+          "right": 95,
+          "width": 25
+        },
+        {
+          "y": 25,
+          "left": 71,
+          "right": 95,
+          "width": 25
+        },
+        {
+          "y": 26,
+          "left": 70,
+          "right": 95,
+          "width": 26
+        },
+        {
+          "y": 27,
+          "left": 70,
+          "right": 95,
+          "width": 26
+        },
+        {
+          "y": 28,
+          "left": 69,
+          "right": 95,
+          "width": 27
+        },
+        {
+          "y": 29,
+          "left": 69,
+          "right": 95,
+          "width": 27
+        },
+        {
+          "y": 30,
+          "left": 69,
+          "right": 95,
+          "width": 27
+        },
+        {
+          "y": 31,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 32,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 33,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 34,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 35,
+          "left": 67,
+          "right": 95,
+          "width": 29
+        },
+        {
+          "y": 36,
+          "left": 67,
+          "right": 95,
+          "width": 29
+        },
+        {
+          "y": 37,
+          "left": 67,
+          "right": 95,
+          "width": 29
+        },
+        {
+          "y": 38,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 39,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 40,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 41,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 42,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 43,
+          "left": 67,
+          "right": 95,
+          "width": 29
+        },
+        {
+          "y": 44,
+          "left": 67,
+          "right": 95,
+          "width": 29
+        },
+        {
+          "y": 45,
+          "left": 67,
+          "right": 95,
+          "width": 29
+        },
+        {
+          "y": 46,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 47,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 48,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 49,
+          "left": 68,
+          "right": 95,
+          "width": 28
+        },
+        {
+          "y": 50,
+          "left": 69,
+          "right": 95,
+          "width": 27
+        },
+        {
+          "y": 51,
+          "left": 69,
+          "right": 95,
+          "width": 27
+        },
+        {
+          "y": 52,
+          "left": 69,
+          "right": 95,
+          "width": 27
+        },
+        {
+          "y": 53,
+          "left": 70,
+          "right": 95,
+          "width": 26
+        },
+        {
+          "y": 54,
+          "left": 70,
+          "right": 95,
+          "width": 26
+        },
+        {
+          "y": 55,
+          "left": 71,
+          "right": 95,
+          "width": 25
+        },
+        {
+          "y": 56,
+          "left": 71,
+          "right": 95,
+          "width": 25
+        },
+        {
+          "y": 57,
+          "left": 72,
+          "right": 95,
+          "width": 24
+        }
+      ],
+      "source_sha256": "0dc202903e0fb7833e7281c192dac942a8c0e3b2df4bdb9636bdb9c0f50ef323",
+      "depth_model": "Authored longitudinal depth plus rounded transverse sections; single-view inference, not measured hidden geometry",
+      "hidden_surfaces": "Continuous hard-surface panels, inset seams, grip ribs, bores and fasteners; hand colours excluded"
+    }
+  ]
+}

@@ -445,6 +445,13 @@ extern "C" void abxr_begin_shot(void *data) {
         return;
     auto pose = t.hands[1];
     auto q = pose.orientation;
+    auto muzzle = renderer.weapons.muzzle(s.plr1.gun_selected);
+    // Transform the model's named muzzle socket by the same aim pose used to
+    // render its grip; never launch a projectile from the controller's centre.
+    float mx=muzzle[0],my=muzzle[1],mz=muzzle[2];
+    pose.position.x+=(1-2*(q.y*q.y+q.z*q.z))*mx+2*(q.x*q.y-q.w*q.z)*my+2*(q.x*q.z+q.w*q.y)*mz;
+    pose.position.y+=2*(q.x*q.y+q.w*q.z)*mx+(1-2*(q.x*q.x+q.z*q.z))*my+2*(q.y*q.z-q.w*q.x)*mz;
+    pose.position.z+=2*(q.x*q.z-q.w*q.y)*mx+2*(q.y*q.z+q.w*q.x)*my+(1-2*(q.x*q.x+q.y*q.y))*mz;
     float dx = -2 * (q.x * q.z + q.w * q.y), dy = -2 * (q.y * q.z - q.w * q.x),
           dz = -(1 - 2 * (q.x * q.x + q.y * q.y));
     float yaw = angle(s) - t.anchorYaw * 3.14159265f / 180, c = cosf(yaw), v = sinf(yaw);
@@ -454,6 +461,11 @@ extern "C" void abxr_begin_shot(void *data) {
         return;
     float wx = s.plr1.xoff / 65536.f + (c * x + v * z) * 32,
           wz = s.plr1.zoff / 65536.f + (-v * x + c * z) * 32;
+    // The longer visible barrel can cross a wall while the grip remains in
+    // the room. Sweep to its muzzle without setting wall-use/touch flags.
+    float bodyY=s.plr1.yoff-crouchCompensation(s)*8192;
+    if(view_path_blocked(&s.level,s.plr1.zone,s.plr1.xoff/65536.f,bodyY,s.plr1.zoff/65536.f,
+                         wx,bodyY-y*8192,wz,1))return;
     // Do not spawn shots through a wall into a neighbouring room.
     if (level_find_zone_for_point(&s.level, int(wx), int(wz), s.plr1.zone) != s.plr1.zone)
         return;
@@ -496,6 +508,7 @@ extern "C" void abxr_present(void *data) {
             if (!window)
                 throw std::runtime_error("No native OpenGL window");
             SDL_SetWindowTitle(window, "Alien Breed XR");
+            renderer.weapons.loadAll();
             initialized = true;
             std::cerr << "GPU: " << glGetString(GL_RENDERER) << " / SDL " << SDL_GetCurrentVideoDriver()
                       << '\n';
@@ -534,6 +547,11 @@ extern "C" void abxr_present(void *data) {
                                   {"xr_entries", entries},
                                   {"xr_suspends", suspends},
                                   {"controller_shots", shots},
+                                  {"weapon_models_loaded", renderer.weapons.loaded()},
+                                  {"weapon_draws", renderer.weapons.draws},
+                                  {"weapon_gpu_triangles", renderer.weapons.triangles},
+                                  {"weapon_slots_drawn", renderer.weapons.slotsDrawn},
+                                  {"weapon_sprite_frame", renderer.weapons.spriteFrame},
                                   {"wall_fade", xr ? xr->wallFade() : 0},
                                   {"wall_blocked_frames", wallBlockedFrames},
                                   {"use_actions", useActions},

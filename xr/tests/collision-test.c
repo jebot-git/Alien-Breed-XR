@@ -66,9 +66,13 @@ int main(void) {
         player_clump_after_collision(p,&state);
     }
     assert(sounds==0 && state.plr1_clumptime==4000);
-    p->xoff=1<<16;player_clump_after_collision(p,&state);
+    p->xoff=2<<16;player_clump_after_collision(p,&state);
     assert(sounds==1); // accepted movement crosses the step threshold
-    state.plr1_clumptime=0;sounds=0;p->xoff=0;p->zoff=32<<16;
+    state.plr1_clumptime=0;sounds=0;p->xoff=0;p->zoff=64<<16;
     player_clump_after_collision(p,&state);assert(sounds==1); // strafing counts
+    // Cadence is one trigger per 64 accepted units, half the former rate.
+    state.plr1_clumptime=0;sounds=0;p->zoff=p->oldzoff=0;
+    for(int i=0;i<128;++i){p->oldxoff=i*4<<16;p->xoff=(i+1)*4<<16;player_clump_after_collision(p,&state);}
+    assert(sounds==8);
     puts("PASS grounded/flying sprites, blocked footsteps, eye sweep, portals, live doors and ceilings");
 }

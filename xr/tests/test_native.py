@@ -37,6 +37,8 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     assert data['movement_samples']>0 and data['movement_first_world_xz'][0]<-.3 and abs(data['movement_first_world_xz'][1])<.02,data
     assert abs(data['virtual_yaw_deg']-330)<.2,data
     assert data['xr_entries']==1 and data['controller_shots']>10 and data['xr_suspends']==0,data
+    assert data['weapon_models_loaded']==6 and data['weapon_draws']==220 and data['weapon_gpu_triangles']>100,data
+    assert data['weapon_slots_drawn'] & 1 and data['weapon_slots_drawn'] != 1,data
     assert data['wall_blocked_frames']==0 and data['wall_fade']==0,data
     hashes=[line.split() for line in eyes.read_text().splitlines()]
     assert len(hashes)==110 and sum(left!=right for _,left,right in hashes)>100

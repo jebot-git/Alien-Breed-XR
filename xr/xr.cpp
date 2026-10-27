@@ -550,6 +550,11 @@ bool XR::frame(Renderer &renderer, const Game &game) {
             glMatrixMode(GL_MODELVIEW);
             glLoadIdentity();
             inversePose(views[i].pose);
+            glTranslatef(x.anchor.x, x.anchor.y, x.anchor.z);
+            glRotatef(x.yaw, 0, 1, 0);
+            renderer.world(game, true);
+            glLoadIdentity();
+            inversePose(views[i].pose);
             // Controller geometry uses its full runtime pose in LOCAL space.
             for (int hand = 0; hand < 2; ++hand)
                 if (x.tracking.valid[hand]) {
@@ -575,17 +580,18 @@ bool XR::frame(Renderer &renderer, const Game &game) {
                                    1};
                     glTranslatef(pose.position.x, pose.position.y, pose.position.z);
                     glMultMatrixf(m);
+                    if(hand==1) {
+                        renderer.weapons.draw(game.state->plr1.gun_selected,game.state->plr1.gun_frame);
+                    } else {
                     glDisable(GL_TEXTURE_2D);
                     glColor3f(hand ? .9f : .2f, hand ? .5f : .8f, .3f);
                     glBegin(GL_LINES);
                     glVertex3f(0, 0, 0);
                     glVertex3f(0, 0, -.25f);
                     glEnd();
+                    }
                     glPopMatrix();
                 }
-            glTranslatef(x.anchor.x, x.anchor.y, x.anchor.z);
-            glRotatef(x.yaw, 0, 1, 0);
-            renderer.world(game, true);
             if (viewGame.wallFade>0) {
                 glPushAttrib(GL_ALL_ATTRIB_BITS);
                 glDisable(GL_DEPTH_TEST);

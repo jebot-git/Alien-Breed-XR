@@ -94,6 +94,7 @@ unsigned Renderer::sprite(int vect, int frame, int width, int height) {
     return sprites[key] = tex;
 }
 void Renderer::clear() {
+    weapons.clear();
     for (auto [key, list] : polygons)
         glDeleteLists(list, 1);
     polygons.clear();

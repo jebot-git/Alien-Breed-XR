@@ -451,12 +451,12 @@ static void player_advance_clumptime(PlayerState *plr, GameState *state, int16_t
 static void player_clump_after_collision(PlayerState *plr, GameState *state)
 {
     /* Count actual travel, including strafing. Ignore blocked fractional
-     * movement and teleport-sized displacements. One step per world metre. */
+     * movement and teleport-sized displacements. One step per two world metres. */
     int dx=(plr->xoff>>16)-(plr->oldxoff>>16);
     int dz=(plr->zoff>>16)-(plr->oldzoff>>16);
     int distance=(int)sqrt((double)dx*dx+(double)dz*dz);
     if(distance>0 && distance<128)
-        player_advance_clumptime(plr,state,(int16_t)(distance*128));
+        player_advance_clumptime(plr,state,(int16_t)(distance*64));
 }
 #endif
 

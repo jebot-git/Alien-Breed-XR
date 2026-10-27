@@ -35,8 +35,10 @@ Metres, grip origin at weapon root. Blender forward +Y exports to glTF -Z,
 with glTF +Y up. Named grip and muzzle nodes also carry socket extras. Root
 extras record the AB3D I weapon slot and reconstruction status. World/controller
 tracking should drive the grip root; use the muzzle node for barrel effects.
-These assets are not yet connected to the XR game renderer. The first mesh pass
-needs headset review for perceived size, silhouette and hand alignment.
+The XR renderer loads these models into GPU buffers and attaches the selected
+weapon to the right controller aim pose. Engine gun_frame drives the Fire clip;
+shots use the model muzzle socket. Headset review is still needed for perceived
+size, silhouette and hand alignment.
 
 Files:
 - sprites/: 24 original RGBA reference frames; slots 5/6 are intentionally omitted.

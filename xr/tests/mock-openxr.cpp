@@ -265,8 +265,8 @@ XRAPI_ATTR XrResult XRAPI_CALL xrEndFrame(XrSession, const XrFrameEndInfo *info)
                     hash *= 1099511628211ULL;
                 }
                 out << " " << hash;
-                if (frame == 60) {
-                    std::ofstream image(std::string(file) + (eye ? ".right.ppm" : ".left.ppm"),
+                if (frame == 6 || frame == 60) {
+                    std::ofstream image(std::string(file) + (frame == 6 ? ".frame6" : "") + (eye ? ".right.ppm" : ".left.ppm"),
                                         std::ios::binary);
                     image << "P6\n" << chain->width << " " << chain->height << "\n255\n";
                     for (int y = chain->height - 1; y >= 0; --y)

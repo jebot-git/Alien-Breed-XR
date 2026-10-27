@@ -85,12 +85,21 @@ profile as fallback. Index uses B on the respective hands for previous/next and
 left-stick click for the menu. Vive retains grip-to-use and its trackpad axes.
 The simple-controller profile supports right select to fire, left select to use,
 and Menu; it has no stick locomotion or Y/B weapon buttons. Controller pointers
-remain simple 3D lines.
+use the right aim pose for the selected glTF weapon; the left pointer remains
+available for reference. All six models and their embedded textures upload once
+to GPU buffers. Original gun countdown ticks drive the Fire clip, discrete sprite
+states and pump mechanisms. Models are loaded from executable-local
+`data/weapons/*.glb`, staged by CMake; missing assets are reported as an error.
+Controller shots originate at the named muzzle socket and are blocked when its
+path crosses a wall. The source/editable assets are in `xr/assets/weapons/`.
+The loader supports this unskinned GLB asset set (embedded PNGs, TRS/matrix
+nodes, opaque/blended materials, STEP/LINEAR animation), rather than every glTF
+extension. Geometry and textures remain on the GPU during normal playback.
 
 Sprite quads use the original centre height and class-specific dimensions, so
 ground enemies meet their authored floor while flying enemies retain their
 height. XR footsteps advance from accepted movement after collision, including
-strafing; pushing a stationary player against a wall produces no footsteps.
+strafing, once per 64 world units (two metres, half the previous cadence); pushing a stationary player against a wall produces no footsteps.
 Synthetic camera bob is disabled in XR and analog acceleration matches the
 original engine's sine-table amplitude.
 
@@ -173,3 +182,9 @@ See [SOURCE_NOTICES.md](SOURCE_NOTICES.md) for provenance.
 
 
 Controller profile paths follow the [Meta OpenXR binding documentation](https://developers.meta.com/vr/documentation/native/android/mobile-openxr-actions-actionsets-bindings/).
+
+Additional CTest checks cover all six weapons and every firing tick using the
+actual offscreen GPU, with visible-pixel checks and captures under
+`artifacts/weapon-gpu-test/`. Footstep audio tests verify original sample
+durations and normal mixer consumption at 8007 and 48000 Hz. The stereo fixture
+checks model uploads, weapon draw calls in both eyes and weapon switching.

@@ -1,5 +1,6 @@
 #pragma once
 #include "game.hpp"
+#include "weapon.hpp"
 #include <map>
 #include <string>
 #include <vector>
@@ -19,6 +20,7 @@ class Renderer {
     unsigned texture(int id, int rows = 64);
 
   public:
+    WeaponRenderer weapons;
     unsigned long triangles = 0;
     void world(const Game &game, bool xr);
     void finishFrame(const Game &, int, int, int, int, int);

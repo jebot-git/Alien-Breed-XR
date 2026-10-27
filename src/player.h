@@ -72,4 +72,9 @@ bool player_read_autosave_info(int slot, PlayerAutosaveInfo *info);
 /* After level reload, apply the pending full restore (or legacy position payload). */
 void player_apply_save_payload_after_level_load(GameState *state);
 
+#ifdef AB3D_XR
+/* Rebase body height after explicit headset calibration, preserving the feet
+ * and respecting the current room's original crouch/ceiling rules. */
+void player_xr_reset_height(GameState *state);
+#endif
 #endif /* PLAYER_H */

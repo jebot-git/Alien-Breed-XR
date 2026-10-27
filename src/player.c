@@ -82,14 +82,16 @@
 /* Gun selection key -> gun index mapping.
  * Plr1Control.s GUNVALS has the original five slots:
  * key1 pistol, key2 shotgun, key3 plasma, key4 grenade, key5 rocket.
- * The PC flamethrower option appends gun 3 on key6 without replacing them. */
-static const int8_t gun_key_map[6] = {
+ * Non-XR PC builds can append the optional flamethrower on key6. */
+static const int8_t gun_key_map[] = {
     AB3D_GUN_PISTOL,
     AB3D_GUN_SHOTGUN,
     AB3D_GUN_PLASMA,
     AB3D_GUN_GRENADE_LAUNCHER,
     AB3D_GUN_ROCKET,
+#ifndef AB3D_XR
     AB3D_GUN_FLAMETHROWER,
+#endif
 };
 #define GUN_KEY_COUNT ((int)(sizeof(gun_key_map) / sizeof(gun_key_map[0])))
 
@@ -193,6 +195,9 @@ static bool player_weapon_is_selectable(const PlayerState *plr, int gun_idx)
 {
     if (!plr) return false;
     if (gun_idx < 0 || gun_idx >= MAX_GUNS) return false;
+#ifdef AB3D_XR
+    if(gun_idx==3 || gun_idx==5 || gun_idx==6)return false;
+#endif
     return plr->gun_data[gun_idx].visible != 0;
 }
 
@@ -341,6 +346,13 @@ static void player_enable_flamethrower(GameState *state, PlayerState *plr, int p
 void player_apply_weapon_config(GameState *state)
 {
     if (!state) return;
+#ifdef AB3D_XR
+    /* XR presents the five original weapons, including when an older INI,
+     * all-weapons cheat or save still enables the PC-only sixth weapon. */
+    state->cfg_flamethrower_weapon=false;
+    player_disable_weapon(&state->plr1,5);player_disable_weapon(&state->plr1,6);
+    player_disable_weapon(&state->plr2,5);player_disable_weapon(&state->plr2,6);
+#endif
 
     if (state->cfg_flamethrower_weapon) {
         player_enable_flamethrower(state, &state->plr1, 1);
@@ -404,6 +416,30 @@ static uint8_t *resolve_player_room_ptr(GameState *state, const PlayerState *plr
     }
     return NULL;
 }
+
+#ifdef AB3D_XR
+void player_xr_reset_height(GameState *state)
+{
+    if(!state)return;
+    PlayerState *p=&state->plr1;
+    uint8_t *room=resolve_player_room_ptr(state,p);
+    int32_t target=PLAYER_HEIGHT;
+    int32_t feet=p->s_yoff+p->s_height;
+    int32_t floor=p->s_tyoff+p->s_height;
+    int32_t roof=INT32_MIN;
+    if(room){
+        int offset=p->stood_in_top?8:0;
+        floor=player_read_i32_be(room+2+offset);roof=player_read_i32_be(room+6+offset);
+        if((int64_t)floor-roof<=PLAYER_HEIGHT+3*1024)target=PLAYER_CROUCHED;
+    }
+    int32_t y=feet-target;
+    if(room){if(y<roof)y=roof;if((int64_t)y+target>floor)y=floor-target;}
+    p->height=p->s_height=p->p_height=p->s_targheight=target;
+    p->yoff=p->s_yoff=p->p_yoff=p->oldyoff=y;
+    p->tyoff=p->s_tyoff=floor-target;
+    p->ducked=p->p_ducked=(target<PLAYER_HEIGHT);
+}
+#endif
 
 static int16_t *player_clumptime_ptr(GameState *state, const PlayerState *plr)
 {

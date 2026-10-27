@@ -30,6 +30,7 @@ class XR {
     bool frame(Renderer &renderer, const Game &game);
     const Tracking &tracking() const;
     void recenter();
+    bool resetHeight();
     void setVisible(bool visible);
     bool focused() const;
     float wallFade() const;

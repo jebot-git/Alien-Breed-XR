@@ -16,7 +16,7 @@
 namespace tempest {
 namespace {
 using Json=nlohmann::json;
-constexpr const char *names[8]={"pistol","plasma","rocket","flamethrower","grenade",nullptr,nullptr,"shotgun"};
+constexpr const char *names[8]={"pistol","plasma","rocket",nullptr,"grenade",nullptr,nullptr,"shotgun"};
 void require(bool test,const char *message) { if(!test)throw std::runtime_error(std::string("Weapon glTF: ")+message); }
 uint32_t word(const std::vector<uint8_t>&b,size_t at) {
     require(at<=b.size() && b.size()-at>=4,"truncated GLB");

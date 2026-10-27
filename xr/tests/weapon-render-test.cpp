@@ -14,9 +14,9 @@ int main(int argc,char **argv){
     assert(SDL_Init(SDL_INIT_VIDEO)==0);
     auto window=SDL_CreateWindow("Weapon GPU validation",0,0,640,480,SDL_WINDOW_OPENGL|SDL_WINDOW_HIDDEN);
     assert(window);auto context=SDL_GL_CreateContext(window);assert(context);
-    tempest::WeaponRenderer weapons;weapons.loadAll();assert(weapons.loaded()==6);
+    tempest::WeaponRenderer weapons;weapons.loadAll();assert(weapons.loaded()==5);
     std::filesystem::path out=argc>1?argv[1]:".";std::filesystem::create_directories(out);
-    for(int slot:{0,1,2,3,4,7}){
+    for(int slot:{0,1,2,4,7}){
         std::set<unsigned long long> hashes;
         for(int remaining=0;remaining<=gun_anims[slot].num_frames;++remaining){
             glViewport(0,0,640,480);glClearColor(.04,.05,.07,1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -36,5 +36,5 @@ int main(int argc,char **argv){
         }
         assert(hashes.size()>1);std::cout<<"PASS weapon "<<slot<<" visible geometry and "<<hashes.size()<<" distinct GPU animation frames\n";
     }
-    assert(weapons.slotsDrawn==0x9f);weapons.clear();SDL_GL_DeleteContext(context);SDL_DestroyWindow(window);SDL_Quit();
+    assert(weapons.slotsDrawn==0x97);weapons.clear();SDL_GL_DeleteContext(context);SDL_DestroyWindow(window);SDL_Quit();
 }

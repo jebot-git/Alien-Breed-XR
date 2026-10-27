@@ -116,8 +116,9 @@ void Renderer::finishFrame(const Game &game, int, int, int, int, int) {
     const auto &s = *game.state;
     const auto &p = s.plr1;
     glColor4f(.01f, .025f, .035f, .8f);
-    quad(0, -.83f, -.68f, 1.66f, .19f);
+    quad(0, -.83f, -.68f, 1.66f, .235f);
     glColor4f(1, 1, 1, 1);
+    text(gun_names[std::clamp(int(p.gun_selected),0,MAX_GUNS-1)], -.79f, -.478f, .026f);
     text("VITALITY", -.79f, -.535f, .032f);
     text("AMMO", -.37f, -.535f, .032f);
     text("CARDS", .13f, -.535f, .032f);
@@ -147,13 +148,13 @@ void Renderer::finishFrame(const Game &game, int, int, int, int, int) {
         text(game.overlay->message, -.8f, -.74f, .03f);
     if (game.overlay && game.overlay->menu) {
         glColor4f(.005f, .015f, .025f, .94f);
-        quad(0, -.66f, -.38f, 1.32f, .91f);
+        quad(0, -.72f, -.48f, 1.44f, 1.10f);
         glColor4f(1, 1, 1, 1);
-        text("ALIEN BREED - PAUSED", -.53f, .4f, .055f);
+        text("ALIEN BREED - PAUSED", -.53f, .49f, .055f);
         const char *items[] = {"RESUME", game.overlay->smoothTurn ? "TURN: SMOOTH" : "TURN: SNAP",
-                               "SAVE GAME", "LOAD GAME", "QUIT"};
-        for (int i = 0; i < 5; ++i) {
-            float y = .24f - i * .115f;
+                               "RESET HEIGHT / FLOOR", "SAVE GAME", "LOAD GAME", "QUIT"};
+        for (int i = 0; i < PauseCount; ++i) {
+            float y = .32f - i * .115f;
             if (i == game.overlay->selection) {
                 glColor4f(.07f, .24f, .17f, .95f);
                 quad(0, -.59f, y - .018f, 1.18f, .09f);
@@ -162,7 +163,7 @@ void Renderer::finishFrame(const Game &game, int, int, int, int, int) {
             text(i == game.overlay->selection ? std::string("> ") + items[i] : std::string("  ") + items[i],
                  -.54f, y, .055f);
         }
-        text("STICK: SELECT  A / TRIGGER: ACTIVATE", -.58f, -.33f, .03f);
+        text("STICK: SELECT  A / TRIGGER: ACTIVATE", -.58f, -.43f, .03f);
     }
     glPopAttrib();
 }

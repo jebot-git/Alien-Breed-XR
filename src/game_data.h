@@ -67,8 +67,11 @@ extern const char *gun_names[8];
 
 /* AB3D I gun indices used by optional PC-side config/control paths.
  * Gun data itself is translated from AB3DI.s PLR1_GunData. */
-#define AB3D_GUN_PISTOL 0
-#define AB3D_GUN_PLASMA 1
+#define AB3D_GUN_PULSE_RIFLE 0
+#define AB3D_GUN_MACHINE_GUN 1
+/* Legacy implementation/asset names retain the original save slot numbers. */
+#define AB3D_GUN_PISTOL AB3D_GUN_PULSE_RIFLE
+#define AB3D_GUN_PLASMA AB3D_GUN_MACHINE_GUN
 #define AB3D_GUN_ROCKET 2
 #define AB3D_GUN_FLAMETHROWER 3
 #define AB3D_GUN_SHOTGUN 7

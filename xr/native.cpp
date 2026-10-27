@@ -52,7 +52,7 @@ float turnFraction = 0;
 Uint64 lastControlTime = 0;
 float physicalTarget = 1.5f, minPhysicalTarget = 1.5f, minEngineHeight = 1.5f;
 int previousGun = -1, weaponChanges = 0;
-int wallBlockedFrames = 0;
+int wallBlockedFrames = 0, heightResets=0;
 float crouchCompensation(const GameState &state) {
     return xr ? crouchViewCompensation(state.plr1.height / 8192.f, physicalTarget) : 0;
 }
@@ -74,22 +74,32 @@ void menuState(GameState &state, bool open) {
 }
 void menuAction(GameState &state) {
     switch (overlay.selection) {
-    case 0:
+    case PauseResume:
         menuState(state, false);
         break;
-    case 1:
+    case PauseTurning:
         overlay.smoothTurn = !overlay.smoothTurn;
         turnFraction = 0;
         overlay.message = overlay.smoothTurn ? "SMOOTH TURN ENABLED" : "SNAP TURN ENABLED";
         break;
-    case 2:
+    case PauseHeight:
+        if(!xr || !xr->resetHeight()) {
+            overlay.message="HEAD TRACKING UNAVAILABLE";
+            break;
+        }
+        physicalTarget=PLAYER_HEIGHT/8192.f;
+        player_xr_reset_height(&state);
+        ++heightResets;
+        overlay.message="HEIGHT / FLOOR RESET";
+        break;
+    case PauseSave:
         if (player_xr_save(&state)) {
             ++saves;
             overlay.message = "GAME SAVED";
         } else
             overlay.message = "SAVE FAILED";
         break;
-    case 3: {
+    case PauseLoad: {
         auto result = player_load_save_from_file(&state);
         if (result == PLAYER_SAVE_LOAD_FAILED) {
             overlay.message = "NO VALID SAVE TO LOAD";
@@ -104,7 +114,7 @@ void menuAction(GameState &state) {
         }
         break;
     }
-    case 4:
+    case PauseQuit:
         quitting = true;
         state.running = false;
         break;
@@ -315,7 +325,7 @@ extern "C" int abxr_poll(void *data) {
             float axis = std::abs(t.move.y) > .55f ? t.move.y : t.turn.y;
             if ((nav && !navHeld) || upPressed || downPressed)
                 overlay.selection =
-                    (overlay.selection + (upPressed || (!downPressed && axis > 0) ? 4 : 1)) % 5;
+                    (overlay.selection + (upPressed || (!downPressed && axis > 0) ? PauseCount-1 : 1)) % PauseCount;
             navHeld = nav;
             if (!opening && selecting && !selectHeld)
                 menuAction(state);
@@ -371,7 +381,7 @@ extern "C" int abxr_poll(void *data) {
         }
     } else if (overlay.menu && !paused) {
         if (upPressed || downPressed)
-            overlay.selection = (overlay.selection + (upPressed ? 4 : 1)) % 5;
+            overlay.selection = (overlay.selection + (upPressed ? PauseCount-1 : 1)) % PauseCount;
         if (enterPressed)
             menuAction(state);
     }
@@ -608,6 +618,12 @@ extern "C" void abxr_present(void *data) {
                                   {"menu_selection", overlay.selection},
                                   {"smooth_turn", overlay.smoothTurn},
                                   {"menu_opens", menuOpens},
+                                  {"height_resets", heightResets},
+                                  {"height_calibration_y", xr?xr->tracking().anchor.y:0},
+                                  {"head_height_offset_m", xr?xr->tracking().headPosition.y-xr->tracking().anchor.y:0},
+                                  {"weapon_name", gun_names[std::clamp(int(state.plr1.gun_selected),0,MAX_GUNS-1)]},
+                                  {"flamethrower_enabled", state.cfg_flamethrower_weapon},
+                                  {"selectable_weapon_mask", [&]{unsigned mask=0;for(int g=0;g<MAX_GUNS;++g)if(state.plr1.gun_data[g].visible)mask|=1u<<g;return mask;}()},
                                   {"saves", saves},
                                   {"loads", loads},
                                   {"status", overlay.message},

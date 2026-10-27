@@ -85,5 +85,22 @@ int main(void) {
     state.plr1_clumptime=0;sounds=0;p->zoff=p->oldzoff=0;
     for(int i=0;i<128;++i){p->oldxoff=i*4<<16;p->xoff=(i+1)*4<<16;player_clump_after_collision(p,&state);}
     assert(sounds==8);
+    // Calibration restores standing body height while preserving the feet.
+    longword(data+6,-32768);p->height=p->s_height=p->p_height=PLAYER_CROUCHED;
+    p->s_yoff=p->yoff=-PLAYER_CROUCHED;p->s_tyoff=-PLAYER_CROUCHED;
+    player_xr_reset_height(&state);
+    assert(p->s_height==PLAYER_HEIGHT && p->s_yoff==-PLAYER_HEIGHT && !p->ducked);
+    assert(p->s_yoff+p->s_height==0 && p->p_height==p->height);
+    // A low ceiling still forces the original crouched body and camera.
+    longword(data+6,-10000);player_xr_reset_height(&state);
+    assert(p->s_height==PLAYER_CROUCHED && p->s_yoff==-PLAYER_CROUCHED && p->ducked);
+    assert(p->s_yoff>=-10000 && p->s_yoff+p->s_height==0);
+    // Old saves/INIs and all-weapons flags must not expose extra XR weapons.
+    state.cfg_flamethrower_weapon=true;
+    for(int g=0;g<MAX_GUNS;++g){p->gun_data[g].visible=-1;p->gun_data[g].ammo=100;}
+    p->gun_selected=AB3D_GUN_FLAMETHROWER;player_apply_weapon_config(&state);
+    unsigned mask=0;for(int g=0;g<MAX_GUNS;++g)if(player_weapon_is_selectable(p,g))mask|=1u<<g;
+    assert(mask==0x97 && GUN_KEY_COUNT==5 && !state.cfg_flamethrower_weapon && p->gun_selected==0);
+    assert(strcmp(gun_names[0],"Mark IV Pulse Rifle")==0 && strcmp(gun_names[1],"Machine Gun")==0);
     puts("PASS grounded/flying sprites, blocked footsteps, eye sweep, portals, live doors and ceilings");
 }

@@ -211,6 +211,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrLocateViews(XrSession, const XrViewLocateInfo *
         if (std::getenv("ABXR_TEST_WALL") && frame>=20 && frame<=30)
             views[i].pose.position.x += 6;
         views[i].pose.position.y += .02f * std::sin(frame * .03f);
+        if(std::getenv("ABXR_TEST_MENU") && frame>=34)views[i].pose.position.y+=.3f;
         if (!std::getenv("ABXR_TEST_MENU") && frame >= 76 && frame <= 94)
             views[i].pose.position.y -= .45f;
         views[i].pose.orientation = {.02f * std::sin(frame * .04f), 0, .015f * std::cos(frame * .03f), 1};
@@ -369,9 +370,9 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateVector2f(XrSession, const XrActio
     out->currentState = {0, 0};
     if (std::getenv("ABXR_TEST_MENU")) {
         if (info->subactionPath == path("/user/hand/left") &&
-            (frame == 18 || frame == 32 || frame == 46 || frame == 70))
+            (frame == 18 || frame == 32 || frame == 46 || frame == 60 || frame == 86))
             out->currentState.y = -1;
-        if (info->subactionPath == path("/user/hand/right") && frame >= 55 && frame <= 61)
+        if (info->subactionPath == path("/user/hand/right") && frame >= 70 && frame <= 76)
             out->currentState.x = .7f;
     } else if (info->subactionPath == path("/user/hand/left") && frame > 40 && frame < 55)
         out->currentState.y = .5f;
@@ -387,8 +388,8 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateBoolean(XrSession, const XrAction
     auto name = reinterpret_cast<Action *>(info->action)->name;
     if (std::getenv("ABXR_TEST_MENU")) {
         out->currentState =
-            (name == "pause" && !right && (frame == 10 || frame == 64)) ||
-            (name == "use" && right && (frame == 24 || frame == 38 || frame == 52 || frame == 76));
+            (name == "pause" && !right && (frame == 10 || frame == 80)) ||
+            (name == "use" && right && (frame == 24 || frame == 28 || frame == 38 || frame == 52 || frame == 66 || frame == 92));
     } else {
         out->currentState = (name == "use" && (right ? frame >= 20 && frame <= 28 : frame == 68)) ||
                             (name == "previous_weapon" && !right && frame == 30) ||

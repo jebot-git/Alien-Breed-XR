@@ -111,7 +111,7 @@ void game_state_init(GameState *state)
     state->plr2_clumptime = 0;
     state->cfg_footsteps_water_only = false;
     state->cfg_marine_hitscan_projectiles = false;
-    state->cfg_flamethrower_weapon = true;
+    state->cfg_flamethrower_weapon = false;
     game_state_reset_flamethrower_recharge(state);
     game_state_reset_enemy_burning(state);
 }

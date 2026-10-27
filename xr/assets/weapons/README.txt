@@ -4,6 +4,13 @@ Six self-contained glTF 2.0 binary files (.glb): pistol, plasma, rocket,
 flamethrower, grenade and shotgun. Open ab3di-sprite-weapons.blend in system
 Blender to edit the models; overview.png is the Blender studio preview.
 
+The XR runtime uses only the five original weapons. Legacy asset names map to:
+pistol = Mark IV Pulse Rifle; shotgun = Double Barrel Shotgun;
+plasma = Machine Gun; grenade = Grenade Launcher; rocket = Rocket Launcher.
+The sixth flamethrower prototype remains archived in this editable source set,
+but is neither staged nor loaded into the XR game. Slots and filenames are
+retained for compatibility with the original data and existing saves.
+
 Created in the installed DomeD Blender 5.4 Alpha using Blender MCP. These are
 new low-poly reconstructions, not recovered high-detail original meshes.
 Original first-person sprites supply every texture colour, the four appearance

@@ -202,14 +202,14 @@ const GunDataEntry default_plr2_guns[8] = {
 };
 
 const char *gun_names[8] = {
-    "Pistol",
-    "Plasma Gun",
+    "Mark IV Pulse Rifle",
+    "Machine Gun",
     "Rocket Launcher",
     "Flamethrower",
     "Grenade Launcher",
     "(Worm Gun)",
     "(Marine Gun)",
-    "Shotgun",
+    "Double Barrel Shotgun",
 };
 
 /* -----------------------------------------------------------------------

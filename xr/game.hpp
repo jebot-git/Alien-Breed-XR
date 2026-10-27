@@ -14,8 +14,9 @@ extern "C" {
 int renderer_xr_decode_sprite(int, int, int, int, uint8_t *);
 }
 namespace tempest {
+enum PauseItem { PauseResume, PauseTurning, PauseHeight, PauseSave, PauseLoad, PauseQuit, PauseCount };
 struct Overlay {
-    bool menu = false, smoothTurn = false;
+    bool menu = false, smoothTurn = true;
     int selection = 0;
     std::string message;
 };

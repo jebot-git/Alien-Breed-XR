@@ -668,6 +668,13 @@ bool XR::frame(Renderer &renderer, const Game &game) {
 const Tracking &XR::tracking() const { return p->tracking; }
 void XR::setVisible(bool visible) { p->visible = visible; }
 void XR::recenter() { p->hasAnchor = false; }
+bool XR::resetHeight() {
+    if(!p->tracking.headValid || !std::isfinite(p->tracking.headPosition.y))return false;
+    // Recalibrate vertical offset only. Keep position/yaw recenter independent.
+    p->standingY=p->tracking.headPosition.y;
+    p->anchor.y=p->standingY;p->tracking.anchor.y=p->standingY;p->heightCalibrated=true;
+    return true;
+}
 bool XR::focused() const { return p->isFocused; }
 float XR::wallFade() const { return p->wallFade; }
 std::string XR::description() const { return p->runtime; }
@@ -683,6 +690,7 @@ void XR::initialize(SDL_Window *) {
 bool XR::frame(Renderer &, const Game &) { return false; }
 void XR::setVisible(bool) {}
 void XR::recenter() {}
+bool XR::resetHeight() { return false; }
 bool XR::focused() const { return false; }
 float XR::wallFade() const { return 0; }
 std::string XR::description() const { return "unavailable"; }

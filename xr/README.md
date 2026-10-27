@@ -34,8 +34,9 @@ in `amiga/`; upstream documentation is retained at the repository root.
   The current SDL Wayland surface is resolved again before requesting ownership
   because SDL can remap it during graphics initialization.
 - A head-locked stereo pause overlay with Resume, smooth/snap turn selection,
-  Save, Load and Quit. The menu pauses gameplay without closing the XR session.
-  Its HUD shows vitality percentage, current weapon ammunition and key-card
+  Reset Height / Floor, Save, Load and Quit. Smooth turning is the default.
+  The menu pauses gameplay without closing the XR session.
+  Its HUD shows vitality percentage, current weapon name/ammunition and key-card
   ownership, reusing the original key-card sprites and the upstream port's
   bitmap font/digit atlases. Overlay assets are uploaded once and drawn on GPU.
 - Native Wayland/EGL when launched under DomeD; explicit desktop and XR modes.
@@ -74,7 +75,12 @@ Physical lowering of the head continuously reduces the body collider within
 the original standing/crouched height range. The view compensates for that body
 height change so the camera does not crouch twice. Start the XR session standing
 to calibrate height; authored low ceilings retain their original forced crouch.
-The right stick turns (30-degree snap or smooth 90 degrees/second at full input).
+The pause menu's Reset Height / Floor treats the current headset height as the
+standing baseline, restoring the standing body while preserving its feet
+position where ceiling clearance allows. It leaves horizontal position and
+heading unchanged. Stand upright before activating it.
+The right stick uses smooth turning at 90 degrees/second at full input by
+default; the menu can switch to 30-degree snap turning.
 
 Right trigger fires, **right A / left X use**, **left Y selects the previous
 weapon**, and **right B selects the next weapon**. Only owned, selectable weapons
@@ -86,7 +92,7 @@ left-stick click for the menu. Vive retains grip-to-use and its trackpad axes.
 The simple-controller profile supports right select to fire, left select to use,
 and Menu; it has no stick locomotion or Y/B weapon buttons. Controller pointers
 use the right aim pose for the selected glTF weapon; the left pointer remains
-available for reference. All six models and their embedded textures upload once
+available for reference. All five models and their embedded textures upload once
 to GPU buffers. Original gun countdown ticks drive the Fire clip, discrete sprite
 states and pump mechanisms. Models are loaded from executable-local
 `data/weapons/*.glb`, staged by CMake; missing assets are reported as an error.
@@ -95,6 +101,14 @@ path crosses a wall. The source/editable assets are in `xr/assets/weapons/`.
 The loader supports this unskinned GLB asset set (embedded PNGs, TRS/matrix
 nodes, opaque/blended materials, STEP/LINEAR animation), rather than every glTF
 extension. Geometry and textures remain on the GPU during normal playback.
+
+The XR roster is the original five weapons, cycled in this order: Mark IV Pulse
+Rifle, Double Barrel Shotgun, Machine Gun, Grenade Launcher and Rocket Launcher.
+The optional PC flamethrower and unused slots remain excluded even with an old
+INI or save. Internal slot numbers and legacy asset filenames remain compatible:
+pulse rifle is slot 0 / `pistol.glb`, shotgun 7 / `shotgun.glb`, machine gun
+1 / `plasma.glb`, grenade launcher 4 / `grenade.glb`, and rocket launcher
+2 / `rocket.glb`.
 
 Sprite quads use the original centre height and class-specific dimensions, so
 ground enemies meet their authored floor while flying enemies retain their
@@ -158,7 +172,7 @@ then runs a private test-only OpenXR API fixture. It verifies 110 stereo frames,
 different left/right eye images, changing head/view images, head-directed
 analog movement, physical crouch and recovery, previous/next weapon changes,
 short A/X Use presses and controller shot pose overrides. A second scripted
-run navigates the real XR pause overlay, changes turning mode, saves, loads
+run navigates the real XR pause overlay, changes turning mode, resets height, saves, loads
 through a level reload and quits while retaining the same XR session. The
 standalone locomotion CTest covers cardinal directions, rotated/recentered head
 poses, analog speed, diagonal limits, pitch/roll and crouch-view compensation. Its readbacks occur in the test fixture only. It does not
@@ -174,7 +188,8 @@ or display-manager session is restarted.
 
 `xr-collision-grounding` exercises solid walls, stationary eye clearance, open
 portals, live door closure, floor/ceiling intrusion, grounded and flying sprite
-metadata, and accepted-distance footstep timing. The GPU fixture also checks
+metadata, accepted-distance footstep timing, standing/low-ceiling height resets
+and the five-weapon roster. The GPU fixture also checks
 head obstruction and recovery without restarting the XR session. The latest
 grounding and collision changes still need physical headset verification.
 
@@ -183,7 +198,7 @@ See [SOURCE_NOTICES.md](SOURCE_NOTICES.md) for provenance.
 
 Controller profile paths follow the [Meta OpenXR binding documentation](https://developers.meta.com/vr/documentation/native/android/mobile-openxr-actions-actionsets-bindings/).
 
-Additional CTest checks cover all six weapons and every firing tick using the
+Additional CTest checks cover all five runtime weapons and every firing tick using the
 actual offscreen GPU, with visible-pixel checks and captures under
 `artifacts/weapon-gpu-test/`. Footstep audio tests verify original sample
 durations and normal mixer consumption at 8007 and 48000 Hz. The stereo fixture

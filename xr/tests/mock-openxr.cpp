@@ -40,6 +40,23 @@ void state(XrEventDataBuffer *out, XrSessionState state) {
 }
 } // namespace
 extern "C" {
+XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateInstanceExtensionProperties(const char *, uint32_t capacity,
+                                                                      uint32_t *count,
+                                                                      XrExtensionProperties *out) {
+    const char *names[] = {XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, XR_MNDX_EGL_ENABLE_EXTENSION_NAME,
+                           "XR_FB_touch_controller_pro"};
+    *count = 3;
+    if (!capacity)
+        return XR_SUCCESS;
+    if (capacity < 3)
+        return XR_ERROR_SIZE_INSUFFICIENT;
+    for (unsigned i = 0; i < 3; ++i) {
+        out[i] = {XR_TYPE_EXTENSION_PROPERTIES};
+        std::strcpy(out[i].extensionName, names[i]);
+        out[i].extensionVersion = 1;
+    }
+    return XR_SUCCESS;
+}
 XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreateInfo *, XrInstance *out) {
     frame = 0;
     pollStage = 0;
@@ -191,12 +208,16 @@ XRAPI_ATTR XrResult XRAPI_CALL xrLocateViews(XrSession, const XrViewLocateInfo *
         views[i].pose = tracked(-1);
         views[i].pose.position.x = (i ? .032f : -.032f) + .04f * std::sin(frame * .05f);
         views[i].pose.position.y += .02f * std::sin(frame * .03f);
+        if (!std::getenv("ABXR_TEST_MENU") && frame >= 76 && frame <= 94)
+            views[i].pose.position.y -= .45f;
         views[i].pose.orientation = {.02f * std::sin(frame * .04f), 0, .015f * std::cos(frame * .03f), 1};
         auto &q = views[i].pose.orientation;
         float length = std::sqrt(q.x * q.x + q.z * q.z + 1);
         q.x /= length;
         q.z /= length;
         q.w /= length;
+        if (frame >= 35)
+            views[i].pose.orientation = {0, .70710678f, 0, .70710678f};
         views[i].fov = {-.65f, .65f, .65f, -.65f};
     }
     return XR_SUCCESS;
@@ -298,7 +319,24 @@ XRAPI_ATTR XrResult XRAPI_CALL xrCreateAction(XrActionSet, const XrActionCreateI
     return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL
-xrSuggestInteractionProfileBindings(XrInstance, const XrInteractionProfileSuggestedBinding *) {
+xrSuggestInteractionProfileBindings(XrInstance, const XrInteractionProfileSuggestedBinding *info) {
+    if (info->interactionProfile == path("/interaction_profiles/oculus/touch_controller") ||
+        info->interactionProfile == path("/interaction_profiles/facebook/touch_controller_pro")) {
+        bool right = false, left = false, previous = false, next = false;
+        for (unsigned i = 0; i < info->countSuggestedBindings; ++i) {
+            auto binding = info->suggestedBindings[i];
+            if (reinterpret_cast<Action *>(binding.action)->name == "use") {
+                right |= binding.binding == path("/user/hand/right/input/a/click");
+                left |= binding.binding == path("/user/hand/left/input/x/click");
+            }
+            if (reinterpret_cast<Action *>(binding.action)->name == "previous_weapon")
+                previous |= binding.binding == path("/user/hand/left/input/y/click");
+            if (reinterpret_cast<Action *>(binding.action)->name == "next_weapon")
+                next |= binding.binding == path("/user/hand/right/input/b/click");
+        }
+        if (!right || !left || !previous || !next)
+            return XR_ERROR_VALIDATION_FAILURE;
+    }
     return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrAttachSessionActionSets(XrSession, const XrSessionActionSetsAttachInfo *) {
@@ -319,21 +357,40 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStatePose(XrSession, const XrActionSta
 XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateFloat(XrSession, const XrActionStateGetInfo *,
                                                      XrActionStateFloat *out) {
     out->isActive = XR_TRUE;
-    out->currentState = (frame > 15 && frame < 75) ? 1.f : 0.f;
+    out->currentState = !std::getenv("ABXR_TEST_MENU") && (frame > 15 && frame < 75) ? 1.f : 0.f;
     return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateVector2f(XrSession, const XrActionStateGetInfo *info,
                                                         XrActionStateVector2f *out) {
     out->isActive = XR_TRUE;
     out->currentState = {0, 0};
-    if (info->subactionPath == path("/user/hand/left") && frame > 40 && frame < 55)
+    if (std::getenv("ABXR_TEST_MENU")) {
+        if (info->subactionPath == path("/user/hand/left") &&
+            (frame == 18 || frame == 32 || frame == 46 || frame == 70))
+            out->currentState.y = -1;
+        if (info->subactionPath == path("/user/hand/right") && frame >= 55 && frame <= 61)
+            out->currentState.x = .7f;
+    } else if (info->subactionPath == path("/user/hand/left") && frame > 40 && frame < 55)
         out->currentState.y = .5f;
+    if (!std::getenv("ABXR_TEST_MENU") && info->subactionPath == path("/user/hand/right") && frame >= 98 &&
+        frame <= 105)
+        out->currentState.x = 1;
     return XR_SUCCESS;
 }
-XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateBoolean(XrSession, const XrActionStateGetInfo *,
+XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateBoolean(XrSession, const XrActionStateGetInfo *info,
                                                        XrActionStateBoolean *out) {
     out->isActive = XR_TRUE;
-    out->currentState = XR_FALSE;
+    bool right = info->subactionPath == path("/user/hand/right");
+    auto name = reinterpret_cast<Action *>(info->action)->name;
+    if (std::getenv("ABXR_TEST_MENU")) {
+        out->currentState =
+            (name == "pause" && !right && (frame == 10 || frame == 64)) ||
+            (name == "use" && right && (frame == 24 || frame == 38 || frame == 52 || frame == 76));
+    } else {
+        out->currentState = (name == "use" && (right ? frame >= 20 && frame <= 28 : frame == 68)) ||
+                            (name == "previous_weapon" && !right && frame == 30) ||
+                            (name == "next_weapon" && right && frame == 60);
+    }
     return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrLocateSpace(XrSpace space, XrSpace, XrTime, XrSpaceLocation *out) {

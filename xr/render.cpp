@@ -100,11 +100,19 @@ void Renderer::clear() {
     for (auto [key, texture] : textures)
         glDeleteTextures(1, &texture);
     textures.clear();
+    if (fontTexture)
+        glDeleteTextures(1, &fontTexture);
+    fontTexture = 0;
+    glDeleteTextures(2, digits);
+    digits[0] = digits[1] = 0;
+    glDeleteTextures(4, cards);
+    for (auto &card : cards)
+        card = 0;
     for (auto [key, texture] : sprites)
         glDeleteTextures(1, &texture);
     sprites.clear();
 }
-void Renderer::world(const Game &game, bool) {
+void Renderer::world(const Game &game, bool immersive) {
     auto &state = *game.state;
     auto &level = state.level;
     auto &p = state.plr1;
@@ -115,7 +123,8 @@ void Renderer::world(const Game &game, bool) {
     glDisable(GL_LIGHTING);
     glPushMatrix();
     glRotatef(-p.angpos * 360.f / 8192, 0, 1, 0);
-    glTranslatef(-p.xoff / 65536.f / 32, p.yoff / 8192.f, -p.zoff / 65536.f / 32);
+    glTranslatef(-p.xoff / 65536.f / 32, p.yoff / 8192.f - (immersive ? game.crouchCompensation : 0.f),
+                 -p.zoff / 65536.f / 32);
     if (cachedLevel != state.current_level) {
         for (auto [key, list] : polygons)
             glDeleteLists(list, 1);
@@ -267,6 +276,12 @@ void Renderer::desktop(const Game &game, int width, int height) {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     world(game, false);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(-1, 1, -.75, .75, .05, 10);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    finishFrame(game, 0, 0, 0, width, height);
 }
 } // namespace tempest
 #include <GL/glu.h>
@@ -323,5 +338,14 @@ void Renderer::floor(const LevelState &level, const uint8_t *indices, int count,
     glTranslatef(0, y, 0);
     glCallList(found->second);
     glPopMatrix();
+}
+} // namespace tempest
+
+namespace tempest {
+void Renderer::invalidateLevel() {
+    for (auto [key, list] : polygons)
+        glDeleteLists(list, 1);
+    polygons.clear();
+    cachedLevel = -1;
 }
 } // namespace tempest

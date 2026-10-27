@@ -82,6 +82,10 @@ void io_make_data_path(char *buf, size_t bufsize, const char *subpath)
 
 void io_make_exe_path(char *buf, size_t bufsize, const char *subpath)
 {
+#ifdef AB3D_XR
+    const char *save_dir=getenv("ABXR_SAVE_DIR");
+    if(save_dir&&*save_dir){snprintf(buf,bufsize,"%s/%s",save_dir,subpath);return;}
+#endif
     snprintf(buf, bufsize, "%s%s", exe_base_path(), subpath);
 }
 

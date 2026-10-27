@@ -43,6 +43,9 @@ void player2_snapshot(GameState *state);
 
 /* Save full game + level runtime state to savegame.bin beside the executable. */
 void player_save_position(GameState *state);
+#ifdef AB3D_XR
+bool player_xr_save(GameState *state);
+#endif
 
 #define PLAYER_AUTOSAVE_SLOT_COUNT 5
 

@@ -1,11 +1,13 @@
 #include "native.h"
 #include "domed.hpp"
 #include "game.hpp"
+#include "locomotion.hpp"
 #include "render.hpp"
 #include "xr.hpp"
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <csignal>
 #include <filesystem>
@@ -31,8 +33,86 @@ PlayerState shotBackup;
 int16_t aimBackup = 0;
 bool lookBackup = false;
 bool shotOverride = false;
+bool useHeld = false, pendingUse = false;
+int useActions = 0;
+XrVector2f lastMovement{}, firstMovement{};
+int movementSamples = 0;
+Overlay overlay;
+bool previousHeld = false, nextHeld = false, selectHeld = false, navHeld = false, suppressActions = false,
+     requireNeutral = false;
+int pendingWeapons = 0, previousActions = 0, nextActions = 0, menuOpens = 0, saves = 0, loads = 0;
+float turnFraction = 0;
+Uint64 lastControlTime = 0;
+float physicalTarget = 1.5f, minPhysicalTarget = 1.5f, minEngineHeight = 1.5f;
+int previousGun = -1, weaponChanges = 0;
+float crouchCompensation(const GameState &state) {
+    return xr ? crouchViewCompensation(state.plr1.height / 8192.f, physicalTarget) : 0;
+}
+Game sceneGame(GameState &state) { return Game{&state, crouchCompensation(state), &overlay}; }
+void menuState(GameState &state, bool open) {
+    overlay.menu = open;
+    if (open)
+        ++menuOpens;
+    state.plr1.s_xspdval = state.plr1.s_zspdval = 0;
+    std::fill(std::begin(state.key_map), std::end(state.key_map), 0);
+    state.plr1.fire = state.plr1.p_fire = 0;
+    pendingUse = false;
+    pendingWeapons = 0;
+    suppressActions = true;
+    requireNeutral = true;
+    lastMovement = {};
+    snapHeld = false;
+    turnFraction = 0;
+}
+void menuAction(GameState &state) {
+    switch (overlay.selection) {
+    case 0:
+        menuState(state, false);
+        break;
+    case 1:
+        overlay.smoothTurn = !overlay.smoothTurn;
+        turnFraction = 0;
+        overlay.message = overlay.smoothTurn ? "SMOOTH TURN ENABLED" : "SNAP TURN ENABLED";
+        break;
+    case 2:
+        if (player_xr_save(&state)) {
+            ++saves;
+            overlay.message = "GAME SAVED";
+        } else
+            overlay.message = "SAVE FAILED";
+        break;
+    case 3: {
+        auto result = player_load_save_from_file(&state);
+        if (result == PLAYER_SAVE_LOAD_FAILED) {
+            overlay.message = "NO VALID SAVE TO LOAD";
+            break;
+        }
+        ++loads;
+        menuState(state, false);
+        overlay.message = "GAME LOADED";
+        if (result == PLAYER_SAVE_LOAD_NEED_LEVEL_RELOAD) {
+            state.debug_f9_need_level_reload = true;
+            state.running = false;
+        }
+        break;
+    }
+    case 4:
+        quitting = true;
+        state.running = false;
+        break;
+    }
+}
 float angle(const GameState &state) { return state.plr1.angpos * 6.283185307f / 8192; }
 void release() {
+    useHeld = pendingUse = false;
+    snapHeld = false;
+    lastMovement = {};
+    previousHeld = nextHeld = selectHeld = navHeld = false;
+    pendingWeapons = 0;
+    suppressActions = true;
+    requireNeutral = true;
+    turnFraction = 0;
+    lastControlTime = 0;
     SDL_SetRelativeMouseMode(SDL_FALSE);
     if (window)
         SDL_SetWindowGrab(window, SDL_FALSE);
@@ -87,6 +167,17 @@ static int startup(int argc, char **argv) {
     std::signal(SIGTERM, [](int) { stopRequested = 1; });
     std::signal(SIGINT, [](int) { stopRequested = 1; });
     std::string mode = "auto";
+    if (!getenv("ABXR_SAVE_DIR")) {
+        const char *state = getenv("XDG_STATE_HOME"), *home = getenv("HOME");
+        if (!state && !home)
+            throw std::runtime_error("Cannot locate user save directory");
+        auto directory =
+            (state ? std::filesystem::path(state) : std::filesystem::path(home) / ".local/state") /
+            "alien-breed-xr";
+        std::filesystem::create_directories(directory);
+        setenv("ABXR_SAVE_DIR", directory.c_str(), 1);
+    } else
+        std::filesystem::create_directories(getenv("ABXR_SAVE_DIR"));
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         auto value = [&]() {
@@ -135,8 +226,19 @@ extern "C" int abxr_status() { return failedStatus; }
 extern "C" int abxr_quitting() { return quitting; }
 extern "C" int abxr_poll(void *data) {
     auto &state = *static_cast<GameState *>(data);
-    auto keys = SDL_GetKeyboardState(nullptr);
-    static bool f8 = false, escape = false, enterKey = false, recenter = false, menu = false;
+    const auto *keys = SDL_GetKeyboardState(nullptr);
+    static bool f8 = false, escape = false, enterKey = false, recenter = false, upKey = false,
+                downKey = false;
+    Uint64 now = SDL_GetPerformanceCounter();
+    float dt =
+        lastControlTime ? std::min(.05f, float(now - lastControlTime) / SDL_GetPerformanceFrequency()) : 0;
+    lastControlTime = now;
+    bool enterPressed = keys[SDL_SCANCODE_RETURN] && !enterKey;
+    enterKey = keys[SDL_SCANCODE_RETURN];
+    bool upPressed = keys[SDL_SCANCODE_UP] && !upKey;
+    upKey = keys[SDL_SCANCODE_UP];
+    bool downPressed = keys[SDL_SCANCODE_DOWN] && !downKey;
+    downKey = keys[SDL_SCANCODE_DOWN];
     bool key = keys[SDL_SCANCODE_F8];
     if (key && !f8 && initialized) {
         if (wantsXR) {
@@ -157,19 +259,18 @@ extern "C" int abxr_poll(void *data) {
             else
                 paused = false;
         } else
-            suspend();
+            menuState(state, !overlay.menu);
     }
     escape = key;
     input_consume_key_press(0x45);
     state.key_map[0x45] = 0;
-    key = keys[SDL_SCANCODE_RETURN];
-    if (key && !enterKey && paused && (!dome->managed() || dome->focused())) {
+    if (enterPressed && paused && (!dome->managed() || dome->focused())) {
         if (wantsXR)
             enter();
         else
             paused = false;
+        enterPressed = false;
     }
-    enterKey = key;
     key = keys[SDL_SCANCODE_R];
     if (key && !recenter && xr)
         xr->recenter();
@@ -181,7 +282,7 @@ extern "C" int abxr_poll(void *data) {
         return 0;
     }
     if (xr) {
-        everFocused = everFocused || xr->focused();
+        everFocused |= xr->focused();
         if (dome->suspended() || (everFocused && !xr->focused()))
             suspend();
     }
@@ -192,38 +293,143 @@ extern "C" int abxr_poll(void *data) {
     }
     if (xr && !paused) {
         auto t = xr->tracking();
-        if (t.menu && !menu)
-            suspend();
-        menu = t.menu;
-        if (xr && !paused) {
-            // Use the original acceleration, collision, doors, pickups and AI.
+        static bool menuHeld = false;
+        bool opening = t.menu && !menuHeld;
+        menuHeld = t.menu;
+        if (opening)
+            menuState(state, !overlay.menu);
+        bool previous = t.previousWeapon && !previousHeld, next = t.nextWeapon && !nextHeld;
+        previousHeld = t.previousWeapon;
+        nextHeld = t.nextWeapon;
+        bool selecting = t.use || t.fire || enterPressed;
+        if (overlay.menu) {
+            bool nav = std::abs(t.move.y) > .55f || std::abs(t.turn.y) > .55f;
+            float axis = std::abs(t.move.y) > .55f ? t.move.y : t.turn.y;
+            if ((nav && !navHeld) || upPressed || downPressed)
+                overlay.selection =
+                    (overlay.selection + (upPressed || (!downPressed && axis > 0) ? 4 : 1)) % 5;
+            navHeld = nav;
+            if (!opening && selecting && !selectHeld)
+                menuAction(state);
+            selectHeld = selecting;
+        } else {
+            navHeld = false;
+            selectHeld = selecting;
+            if (!t.use && !t.fire)
+                suppressActions = false;
+            if (std::hypot(t.move.x, t.move.y) < .2f)
+                requireNeutral = false;
+            if (previous) {
+                pendingWeapons = std::max(-8, pendingWeapons - 1);
+                ++previousActions;
+            }
+            if (next) {
+                pendingWeapons = std::min(8, pendingWeapons + 1);
+                ++nextActions;
+            }
             state.plr1_control.keys = true;
             state.plr1_control.mouse_kbd = false;
             state.plr1_control.mouse = false;
             state.plr1_control.joy = false;
+            // Legacy key fields now only supply footsteps/trigger state. Actual
+            // analog movement is injected at the original acceleration boundary.
             state.key_map[0x4c] = t.move.y > .25f;
             state.key_map[0x4d] = t.move.y < -.25f;
             state.key_map[0x39] = t.move.x < -.25f;
             state.key_map[0x3a] = t.move.x > .25f;
-            state.key_map[0x65] = t.fire;
-            state.key_map[0x40] = t.use;
-            if (std::abs(t.turn.x) > .65f && !snapHeld) {
-                int turn = t.turn.x > 0 ? -683 : 683;
-                state.plr1.s_angpos = (state.plr1.s_angpos + turn) & 8191;
+            state.key_map[0x4f] = state.key_map[0x4e] = 0;
+            state.key_map[0x65] = t.fire && !suppressActions;
+            if (!suppressActions && t.use && !useHeld)
+                pendingUse = true;
+            useHeld = t.use;
+            state.key_map[0x40] = !suppressActions && (t.use || pendingUse);
+            if (overlay.smoothTurn) {
+                float value =
+                    std::abs(t.turn.x) > .2f ? std::copysign((std::abs(t.turn.x) - .2f) / .8f, t.turn.x) : 0;
+                turnFraction -= value * 90.f * dt * 8192.f / 360.f;
+                int delta = int(turnFraction);
+                turnFraction -= delta;
+                state.plr1.s_angpos = (state.plr1.s_angpos + delta) & 8191;
                 state.plr1.angpos = state.plr1.s_angpos;
-                snapHeld = true;
+            } else {
+                if (std::abs(t.turn.x) > .65f && !snapHeld) {
+                    state.plr1.s_angpos = (state.plr1.s_angpos + (t.turn.x > 0 ? -683 : 683)) & 8191;
+                    state.plr1.angpos = state.plr1.s_angpos;
+                    snapHeld = true;
+                }
+                if (std::abs(t.turn.x) < .25f)
+                    snapHeld = false;
             }
-            if (std::abs(t.turn.x) < .25f)
-                snapHeld = false;
         }
+    } else if (overlay.menu && !paused) {
+        if (upPressed || downPressed)
+            overlay.selection = (overlay.selection + (upPressed ? 4 : 1)) % 5;
+        if (enterPressed)
+            menuAction(state);
     }
-    if (paused || (xr && xr->focused() && !xr->tracking().headValid)) {
+    if (paused || overlay.menu || (xr && xr->focused() && !xr->tracking().headValid)) {
         std::fill(std::begin(state.key_map), std::end(state.key_map), 0);
         state.plr1.fire = state.plr1.p_fire = 0;
-        SDL_Delay(8);
+        pendingUse = useHeld = false;
+        lastMovement = {};
+        if (!xr)
+            SDL_Delay(8);
         return 1;
     }
     return 0;
+}
+extern "C" int abxr_crouch_height(const void *data, const void *player) {
+    auto &state = *static_cast<const GameState *>(data);
+    if (!xr || paused || player != &state.plr1 || !xr->focused() || !xr->tracking().headValid)
+        return -1;
+    auto &t = xr->tracking();
+    physicalTarget = trackedBodyHeight(t.headPosition.y, t.anchor.y);
+    minPhysicalTarget = std::min(minPhysicalTarget, physicalTarget);
+    return int(std::lround(physicalTarget * 8192));
+}
+extern "C" int abxr_weapon_steps(const void *data, const void *player) {
+    auto &state = *static_cast<const GameState *>(data);
+    if (!xr || paused || player != &state.plr1)
+        return INT_MIN;
+    int steps = pendingWeapons;
+    pendingWeapons = 0;
+    return steps;
+}
+extern "C" void abxr_level_loaded(void *data) {
+    renderer.invalidateLevel();
+    pendingWeapons = 0;
+    pendingUse = false;
+    requireNeutral = true;
+    suppressActions = true;
+}
+extern "C" int abxr_accelerate(void *data, void *player, int32_t *x, int32_t *z, int ticks, int height,
+                               int runPercent) {
+    auto &state = *static_cast<GameState *>(data);
+    if (!xr || paused || player != &state.plr1)
+        return 0;
+    if (state.plr1.spctap)
+        ++useActions;
+    pendingUse = false; // original always-keys handler has consumed the Use edge
+    const auto &tracking = xr->tracking();
+    if (!xr->focused() || !tracking.headValid) {
+        lastMovement = {};
+        return 1;
+    }
+    lastMovement = headOrientedMovement(requireNeutral ? XrVector2f{} : tracking.move,
+                                        tracking.headYawRadians, tracking.anchorYaw * 3.14159265f / 180,
+                                        state.plr1.s_angpos * 6.283185307f / 8192);
+    if (std::hypot(lastMovement.x, lastMovement.y) > .001f) {
+        if (movementSamples++ == 0)
+            firstMovement = lastMovement;
+    }
+    // Keep the original acceleration/friction, run/crouch speed, integration
+    // and collision; replace only the direction with planar head-relative input.
+    minEngineHeight = std::min(minEngineHeight, height / 8192.f);
+    float scale =
+        32767.f * (3.f * ticks) * std::clamp(height / float(PLAYER_HEIGHT), .5f, 1.f) * runPercent / 100.f;
+    *x += int32_t(std::lround(lastMovement.x * scale));
+    *z += int32_t(std::lround(lastMovement.y * scale));
+    return 1;
 }
 extern "C" void abxr_begin_shot(void *data) {
     if (!xr || paused || !xr->focused())
@@ -254,7 +460,7 @@ extern "C" void abxr_begin_shot(void *data) {
     float ax = c * dx + v * dz, az = -v * dx + c * dz;
     s.plr1.xoff = int32_t(wx * 65536);
     s.plr1.zoff = int32_t(wz * 65536);
-    s.plr1.yoff -= int32_t(y * 8192);
+    s.plr1.yoff -= int32_t((y + crouchCompensation(s)) * 8192);
     s.plr1.angpos = int(std::atan2(-ax, -az) * 8192 / 6.283185307f) & 8191;
     s.plr1.sinval = sin_lookup(s.plr1.angpos);
     s.plr1.cosval = cos_lookup(s.plr1.angpos);
@@ -299,13 +505,16 @@ extern "C" void abxr_present(void *data) {
         int w, h;
         SDL_GL_GetDrawableSize(window, &w, &h);
         if (xr) {
-            if (!xr->frame(renderer, Game{&state})) {
+            if (!xr->frame(renderer, sceneGame(state))) {
                 suspend();
             }
         }
-        renderer.desktop(Game{&state}, w, h);
+        renderer.desktop(sceneGame(state), w, h);
+        if (previousGun >= 0 && previousGun != state.plr1.gun_selected)
+            ++weaponChanges;
+        previousGun = state.plr1.gun_selected;
         ++frames;
-        if (frameLimit && frames >= frameLimit) {
+        if ((frameLimit && frames >= frameLimit) || quitting) {
             captureFrame(w, h);
             quitting = true;
             state.running = false;
@@ -314,20 +523,41 @@ extern "C" void abxr_present(void *data) {
         if (!xr)
             SDL_Delay(1);
         if (!report.empty())
-            std::ofstream(report) << nlohmann::json{{"frames", frames},
-                                                    {"xr_entries", entries},
-                                                    {"xr_suspends", suspends},
-                                                    {"controller_shots", shots},
-                                                    {"gpu_triangles", renderer.triangles},
-                                                    {"renderer", reinterpret_cast<const char *>(
-                                                                     glGetString(GL_RENDERER))},
-                                                    {"video_driver", SDL_GetCurrentVideoDriver()},
-                                                    {"domed_managed", dome->managed()},
-                                                    {"paused", paused},
-                                                    {"energy", state.plr1.energy},
-                                                    {"level", state.current_level + 1}}
-                                         .dump(2)
-                                  << '\n';
+            std::ofstream(report)
+                << nlohmann::json{{"frames", frames},
+                                  {"xr_entries", entries},
+                                  {"xr_suspends", suspends},
+                                  {"controller_shots", shots},
+                                  {"use_actions", useActions},
+                                  {"weapon_previous_actions", previousActions},
+                                  {"weapon_next_actions", nextActions},
+                                  {"weapon", state.plr1.gun_selected},
+                                  {"weapon_changes", weaponChanges},
+                                  {"engine_height_min_m", minEngineHeight},
+                                  {"physical_height_min_m", minPhysicalTarget},
+                                  {"engine_height_m", state.plr1.s_height / 8192.f},
+                                  {"menu_open", overlay.menu},
+                                  {"menu_selection", overlay.selection},
+                                  {"smooth_turn", overlay.smoothTurn},
+                                  {"menu_opens", menuOpens},
+                                  {"saves", saves},
+                                  {"loads", loads},
+                                  {"status", overlay.message},
+                                  {"movement_world_xz", {lastMovement.x, lastMovement.y}},
+                                  {"movement_first_world_xz", {firstMovement.x, firstMovement.y}},
+                                  {"movement_samples", movementSamples},
+                                  {"player_position_xz",
+                                   {state.plr1.xoff / 65536.f, state.plr1.zoff / 65536.f}},
+                                  {"gpu_triangles", renderer.triangles},
+                                  {"renderer", reinterpret_cast<const char *>(glGetString(GL_RENDERER))},
+                                  {"video_driver", SDL_GetCurrentVideoDriver()},
+                                  {"domed_managed", dome->managed()},
+                                  {"paused", paused || overlay.menu},
+                                  {"virtual_yaw_deg", state.plr1.angpos * 360.f / 8192},
+                                  {"energy", state.plr1.energy},
+                                  {"level", state.current_level + 1}}
+                       .dump(2)
+                << '\n';
     } catch (const std::exception &e) {
         failedStatus = 1;
         std::cerr << "Native renderer: " << e.what() << '\n';

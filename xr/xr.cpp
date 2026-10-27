@@ -1,4 +1,5 @@
 #include "xr.hpp"
+#include "locomotion.hpp"
 #include "render.hpp"
 #include <SDL.h>
 #include <SDL_opengl.h>
@@ -41,13 +42,17 @@ struct XR::Impl {
     std::vector<Eye> eyes;
     GLuint fbo = 0;
     XrVector3f anchor{};
+    bool heightCalibrated = false;
+    float standingY = 0;
     float yaw = 0;
     std::string runtime;
     uint64_t frames = 0, stereoFrames = 0;
     Tracking tracking;
+    bool touchPro = false;
     XrActionSet actions = XR_NULL_HANDLE;
-    XrAction pose = XR_NULL_HANDLE, trigger = XR_NULL_HANDLE, stick = XR_NULL_HANDLE, grip = XR_NULL_HANDLE,
-             menu = XR_NULL_HANDLE, select = XR_NULL_HANDLE, haptic = XR_NULL_HANDLE;
+    XrAction pose = XR_NULL_HANDLE, trigger = XR_NULL_HANDLE, stick = XR_NULL_HANDLE,
+             operate = XR_NULL_HANDLE, menu = XR_NULL_HANDLE, previous = XR_NULL_HANDLE,
+             next = XR_NULL_HANDLE, select = XR_NULL_HANDLE, haptic = XR_NULL_HANDLE;
     XrPath handPaths[2]{};
     XrSpace handSpaces[2]{};
     ~Impl() {
@@ -87,12 +92,24 @@ void XR::initialize(SDL_Window *window) {
         throw std::runtime_error("SDL could not identify the native window");
     if (!useEgl && wm.subsystem != SDL_SYSWM_X11)
         throw std::runtime_error("XR requires a native EGL or X11/GLX OpenGL context");
-    const char *extensions[] = {XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, XR_MNDX_EGL_ENABLE_EXTENSION_NAME};
+    uint32_t extensionCount = 0;
+    XR_CHECK(xrEnumerateInstanceExtensionProperties(nullptr, 0, &extensionCount, nullptr));
+    std::vector<XrExtensionProperties> available(extensionCount, {XR_TYPE_EXTENSION_PROPERTIES});
+    XR_CHECK(
+        xrEnumerateInstanceExtensionProperties(nullptr, extensionCount, &extensionCount, available.data()));
+    std::vector<const char *> extensions{XR_KHR_OPENGL_ENABLE_EXTENSION_NAME};
+    if (useEgl)
+        extensions.push_back(XR_MNDX_EGL_ENABLE_EXTENSION_NAME);
+    x.touchPro = std::any_of(available.begin(), available.end(), [](const auto &item) {
+        return std::strcmp(item.extensionName, "XR_FB_touch_controller_pro") == 0;
+    });
+    if (x.touchPro)
+        extensions.push_back("XR_FB_touch_controller_pro");
     XrInstanceCreateInfo ci{XR_TYPE_INSTANCE_CREATE_INFO};
     std::strcpy(ci.applicationInfo.applicationName, "Alien Breed XR");
     ci.applicationInfo.apiVersion = XR_MAKE_VERSION(1, 0, 0);
-    ci.enabledExtensionCount = useEgl ? 2 : 1;
-    ci.enabledExtensionNames = extensions;
+    ci.enabledExtensionCount = extensions.size();
+    ci.enabledExtensionNames = extensions.data();
     XR_CHECK(xrCreateInstance(&ci, &x.instance));
     XrInstanceProperties properties{XR_TYPE_INSTANCE_PROPERTIES};
     XR_CHECK(xrGetInstanceProperties(x.instance, &properties));
@@ -234,7 +251,7 @@ void XR::initializeActions() {
         XrActionCreateInfo info{XR_TYPE_ACTION_CREATE_INFO};
         info.actionType = type;
         std::strcpy(info.actionName, name);
-        std::strcpy(info.localizedActionName, name);
+        std::strcpy(info.localizedActionName, std::strcmp(name, "use") == 0 ? "Use / Operate" : name);
         info.countSubactionPaths = 2;
         info.subactionPaths = x.handPaths;
         XR_CHECK(xrCreateAction(x.actions, &info, &out));
@@ -242,13 +259,18 @@ void XR::initializeActions() {
     action(x.pose, "aim_pose", XR_ACTION_TYPE_POSE_INPUT);
     action(x.trigger, "trigger", XR_ACTION_TYPE_FLOAT_INPUT);
     action(x.stick, "move_turn", XR_ACTION_TYPE_VECTOR2F_INPUT);
-    action(x.grip, "use", XR_ACTION_TYPE_BOOLEAN_INPUT);
+    action(x.operate, "use", XR_ACTION_TYPE_BOOLEAN_INPUT);
     action(x.menu, "pause", XR_ACTION_TYPE_BOOLEAN_INPUT);
+    action(x.previous, "previous_weapon", XR_ACTION_TYPE_BOOLEAN_INPUT);
+    action(x.next, "next_weapon", XR_ACTION_TYPE_BOOLEAN_INPUT);
     action(x.select, "select", XR_ACTION_TYPE_BOOLEAN_INPUT);
     action(x.haptic, "feedback", XR_ACTION_TYPE_VIBRATION_OUTPUT);
-    for (auto profile :
-         {"/interaction_profiles/oculus/touch_controller", "/interaction_profiles/valve/index_controller",
-          "/interaction_profiles/htc/vive_controller", "/interaction_profiles/khr/simple_controller"}) {
+    std::vector<const char *> profiles{
+        "/interaction_profiles/oculus/touch_controller", "/interaction_profiles/valve/index_controller",
+        "/interaction_profiles/htc/vive_controller", "/interaction_profiles/khr/simple_controller"};
+    if (x.touchPro)
+        profiles.push_back("/interaction_profiles/facebook/touch_controller_pro");
+    for (auto profile : profiles) {
         bool simple = std::strstr(profile, "simple"), vive = std::strstr(profile, "vive");
         std::vector<XrActionSuggestedBinding> bindings;
         auto bind = [&](XrAction a, const std::string &b) { bindings.push_back({a, path(b.c_str())}); };
@@ -263,11 +285,15 @@ void XR::initializeActions() {
                 bind(x.stick, hand + (vive ? "/input/trackpad" : "/input/thumbstick"));
             }
             if (!simple)
-                bind(x.grip, hand + (vive ? "/input/squeeze/click"
-                                     : h  ? "/input/a/click"
-                                          : "/input/x/click"));
+                bind(x.operate, hand + (vive ? "/input/squeeze/click"
+                                        : h  ? "/input/a/click"
+                                             : "/input/x/click"));
         }
         bind(x.menu, "/user/hand/left/input/menu/click");
+        if (!simple && !vive) {
+            bind(x.previous, "/user/hand/left/input/y/click");
+            bind(x.next, "/user/hand/right/input/b/click");
+        }
         // Index has no menu path or A/X naming distinction; use its A/B buttons.
         if (std::strstr(profile, "index")) {
             bindings.clear();
@@ -277,9 +303,11 @@ void XR::initializeActions() {
                 bind(x.haptic, hand + "/output/haptic");
                 bind(x.trigger, hand + "/input/trigger/value");
                 bind(x.stick, hand + "/input/thumbstick");
-                bind(x.grip, hand + "/input/a/click");
+                bind(x.operate, hand + "/input/a/click");
             }
-            bind(x.menu, "/user/hand/left/input/b/click");
+            bind(x.menu, "/user/hand/left/input/thumbstick/click");
+            bind(x.previous, "/user/hand/left/input/b/click");
+            bind(x.next, "/user/hand/right/input/b/click");
         }
         XrInteractionProfileSuggestedBinding info{XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
         info.interactionProfile = path(profile);
@@ -305,7 +333,7 @@ void XR::sampleActions(XrTime time) {
     auto &x = *p;
     auto &t = x.tracking;
     bool wasFire = t.fire;
-    t.fire = t.use = t.menu = false;
+    t.fire = t.use = t.menu = t.previousWeapon = t.nextWeapon = false;
     t.move = {};
     t.turn = {};
     t.valid[0] = t.valid[1] = false;
@@ -347,8 +375,10 @@ void XR::sampleActions(XrTime time) {
             t.fire = clicked;
         else
             t.use = clicked;
-        t.use = t.use || boolean(x.grip);
+        t.use = t.use || boolean(x.operate);
         t.menu = t.menu || boolean(x.menu);
+        t.previousWeapon = t.previousWeapon || boolean(x.previous);
+        t.nextWeapon = t.nextWeapon || boolean(x.next);
         get.action = x.trigger;
         XrActionStateFloat trigger{XR_TYPE_ACTION_STATE_FLOAT};
         XR_CHECK(xrGetActionStateFloat(x.session, &get, &trigger));
@@ -450,11 +480,18 @@ bool XR::frame(Renderer &renderer, const Game &game) {
             x.anchor = {(views[0].pose.position.x + views[1].pose.position.x) * .5f,
                         (views[0].pose.position.y + views[1].pose.position.y) * .5f,
                         (views[0].pose.position.z + views[1].pose.position.z) * .5f};
-            auto q = views[0].pose.orientation;
-            x.yaw =
-                std::atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.x * q.x + q.y * q.y)) * 180 / 3.14159265f;
+            if (!x.heightCalibrated) {
+                x.standingY = x.anchor.y;
+                x.heightCalibrated = true;
+            }
+            x.anchor.y = x.standingY; // yaw/position recenter must not recalibrate a physical crouch
+            x.yaw = horizontalHeadYaw(views[0].pose.orientation, 0) * 180 / 3.14159265f;
             x.hasAnchor = true;
         }
+        x.tracking.headPosition = {(views[0].pose.position.x + views[1].pose.position.x) * .5f,
+                                   (views[0].pose.position.y + views[1].pose.position.y) * .5f,
+                                   (views[0].pose.position.z + views[1].pose.position.z) * .5f};
+        x.tracking.headYawRadians = horizontalHeadYaw(views[0].pose.orientation, x.tracking.headYawRadians);
         x.tracking.anchor = x.anchor;
         x.tracking.anchorYaw = x.yaw;
         for (int i = 0; i < 2; i++) {
@@ -523,6 +560,31 @@ bool XR::frame(Renderer &renderer, const Game &game) {
             glTranslatef(x.anchor.x, x.anchor.y, x.anchor.z);
             glRotatef(x.yaw, 0, 1, 0);
             renderer.world(game, true);
+            // Head-locked HUD/menu: retain the real eye-to-head offset so the
+            // panel has stable stereo depth rather than duplicated screen text.
+            glLoadIdentity();
+            inversePose(views[i].pose);
+            auto head = views[0].pose;
+            head.position = x.tracking.headPosition;
+            glTranslatef(head.position.x, head.position.y, head.position.z);
+            auto q = head.orientation;
+            GLfloat rotation[] = {1 - 2 * (q.y * q.y + q.z * q.z),
+                                  2 * (q.x * q.y + q.w * q.z),
+                                  2 * (q.x * q.z - q.w * q.y),
+                                  0,
+                                  2 * (q.x * q.y - q.w * q.z),
+                                  1 - 2 * (q.x * q.x + q.z * q.z),
+                                  2 * (q.y * q.z + q.w * q.x),
+                                  0,
+                                  2 * (q.x * q.z + q.w * q.y),
+                                  2 * (q.y * q.z - q.w * q.x),
+                                  1 - 2 * (q.x * q.x + q.y * q.y),
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  1};
+            glMultMatrixf(rotation);
             renderer.finishFrame(game, i, 0, 0, e.width, e.height);
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             glFlush();

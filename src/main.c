@@ -177,7 +177,14 @@ int main(int argc, char *argv[])
     bool copper_ready = false;
     do {
         play_the_game_prepare_level(&g_state, &copper_ready);
+        abxr_level_loaded(&g_state);
         game_loop(&g_state);
+        if(g_state.debug_f9_need_level_reload && !abxr_quitting()) {
+            g_state.debug_f9_need_level_reload=false;
+            g_state.f9_pending_apply_save=true;
+            io_release_level_memory(&g_state.level);
+            continue;
+        }
         if (g_state.finished_level && !input_quit_requested()) {
             io_release_level_memory(&g_state.level);
             ++g_state.current_level;

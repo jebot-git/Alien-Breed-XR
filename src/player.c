@@ -7,6 +7,9 @@
  */
 
 #include "player.h"
+#ifdef AB3D_XR
+#include "native.h"
+#endif
 #include "game_data.h"
 #include "level.h"
 #include "movement.h"
@@ -792,6 +795,13 @@ static void player_always_keys(PlayerState *plr, uint8_t *key_map,
      * from held sources every display frame, so consume latched key-down events here. */
     keyboard_duck_tap = input_consume_key_press(keys->duck);
     gamepad_duck_tap = input_gamepad_duck_toggle_requested();
+#ifdef AB3D_XR
+    int physical_height = abxr_crouch_height(state,plr);
+    if(physical_height>=0){
+        plr->s_targheight=physical_height;
+        plr->ducked=physical_height<PLAYER_HEIGHT-1024;
+    } else
+#endif
     if (keyboard_duck_tap || gamepad_duck_tap) {
         key_map[keys->duck] = 0;
         plr->s_targheight = PLAYER_HEIGHT;
@@ -854,6 +864,10 @@ static void player_always_keys(PlayerState *plr, uint8_t *key_map,
         input_read_mouse(&mouse);
         int wheel_steps = (int)mouse.wheel_y +
                           (int)input_consume_gamepad_weapon_cycle_steps();
+#ifdef AB3D_XR
+        int vr_steps=abxr_weapon_steps(state,plr);
+        if(vr_steps!=INT_MIN)wheel_steps=-vr_steps;
+#endif
         if (wheel_steps != 0) {
             int direction = (wheel_steps > 0) ? -1 : 1;
             if (wheel_steps < 0) wheel_steps = -wheel_steps;
@@ -966,6 +980,11 @@ static void player_keyboard_control(PlayerState *plr, const uint8_t *key_map,
     int32_t sin_val = plr->s_sinval;
     int32_t cos_val = plr->s_cosval;
 
+#ifdef AB3D_XR
+    if (!abxr_accelerate(state, plr, &xspd, &zspd, temp_frames,
+                         plr->s_height,
+                         state ? state->cfg_run_speed : RUN_SPEED_PERCENT_DEFAULT))
+#endif
     player_accelerate(&xspd, &zspd, sin_val, cos_val, fwd, strafe,
                       player_should_run(state, key_map, keys),
                       state ? state->cfg_run_speed : RUN_SPEED_PERCENT_DEFAULT);
@@ -2988,7 +3007,7 @@ fail:
     return false;
 }
 
-static void player_save_state_to_file(GameState *state, const char *subpath,
+static bool player_save_state_to_file(GameState *state, const char *subpath,
                                       const char *save_label)
 {
     char path[512];
@@ -3005,24 +3024,24 @@ static void player_save_state_to_file(GameState *state, const char *subpath,
     uint32_t automap_seen_bytes = 0;
     size_t door_data_sz, switch_data_sz, lift_data_sz;
 
-    if (!state) return;
+    if (!state) return false;
     if (!subpath || !*subpath) subpath = SAVE_FILE_SUBPATH;
     if (!save_label || !*save_label) save_label = "save";
 
     if (state->level.data && state->level.data_byte_count == 0) {
         printf("[PLAYER] %s: level data size unknown; aborting save\n",
                save_label);
-        return;
+        return false;
     }
     if (state->level.graphics && state->level.graphics_byte_count == 0) {
         printf("[PLAYER] %s: level graphics size unknown; aborting save\n",
                save_label);
-        return;
+        return false;
     }
     if (state->level.clips && state->level.clips_byte_count == 0) {
         printf("[PLAYER] %s: level clips size unknown; aborting save\n",
                save_label);
-        return;
+        return false;
     }
 
     door_data_sz = player_save_table_size_with_sentinel(state->level.door_data, 22u);
@@ -3031,17 +3050,17 @@ static void player_save_state_to_file(GameState *state, const char *subpath,
     if (state->level.door_data && door_data_sz == 0) {
         printf("[PLAYER] %s: door table missing terminator; aborting save\n",
                save_label);
-        return;
+        return false;
     }
     if (state->level.switch_data && switch_data_sz == 0) {
         printf("[PLAYER] %s: switch table missing terminator; aborting save\n",
                save_label);
-        return;
+        return false;
     }
     if (state->level.lift_data && lift_data_sz == 0) {
         printf("[PLAYER] %s: lift table missing terminator; aborting save\n",
                save_label);
-        return;
+        return false;
     }
 
     if (!player_save_size_to_u32(state->level.data ? state->level.data_byte_count : 0, &level_data_bytes) ||
@@ -3061,7 +3080,7 @@ static void player_save_state_to_file(GameState *state, const char *subpath,
         !player_save_size_to_u32(player_save_workspace_size(&state->level), &workspace_bytes)) {
         printf("[PLAYER] %s: payload too large; aborting save\n",
                save_label);
-        return;
+        return false;
     }
 
     {
@@ -3070,7 +3089,7 @@ static void player_save_state_to_file(GameState *state, const char *subpath,
         if (!player_save_size_to_u32(bytes, &automap_seen_bytes)) {
             printf("[PLAYER] %s: automap payload too large; aborting save\n",
                    save_label);
-            return;
+            return false;
         }
     }
 
@@ -3116,7 +3135,7 @@ static void player_save_state_to_file(GameState *state, const char *subpath,
     if (!f) {
         printf("[PLAYER] %s: could not open %s for write\n",
                save_label, path);
-        return;
+        return false;
     }
 
     game_snapshot = *state;
@@ -3153,7 +3172,7 @@ static void player_save_state_to_file(GameState *state, const char *subpath,
         if (!ok) goto fail;
     }
 
-    fclose(f);
+    if(fclose(f)!=0)return false;
 #if defined(__EMSCRIPTEN__)
     if (!player_web_persist_autosave_file(subpath, path, save_label)) {
         printf("[PLAYER] %s: autosave remains available until the page closes\n",
@@ -3162,12 +3181,23 @@ static void player_save_state_to_file(GameState *state, const char *subpath,
 #endif
     printf("[PLAYER] %s: full game + level state (level %d) written to %s\n",
            save_label, (int)state->current_level, path);
-    return;
+    return true;
 
 fail:
     fclose(f);
     printf("[PLAYER] %s: write failed\n", save_label);
+    return false;
 }
+
+#ifdef AB3D_XR
+bool player_xr_save(GameState *state) {
+    char pending[512],target[512];
+    if(!player_save_state_to_file(state,"savegame.pending","save"))return false;
+    io_make_exe_path(pending,sizeof(pending),"savegame.pending");
+    io_make_exe_path(target,sizeof(target),SAVE_FILE_SUBPATH);
+    return rename(pending,target)==0;
+}
+#endif
 
 void player_save_position(GameState *state)
 {

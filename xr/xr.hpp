@@ -8,10 +8,12 @@ class Renderer;
 class Game;
 struct Tracking {
     XrPosef hands[2]{};
-    bool headValid = false, valid[2]{}, fire = false, use = false, menu = false;
+    bool headValid = false, valid[2]{}, fire = false, use = false, menu = false, previousWeapon = false,
+         nextWeapon = false;
     XrVector2f move{}, turn{};
-    XrVector3f anchor{};
-    float anchorYaw = 0;
+    XrVector3f anchor{}, headPosition{};
+    float anchorYaw = 0; // degrees, for the existing world/hand transforms
+    float headYawRadians = 0;
 };
 class XR {
     struct Impl;

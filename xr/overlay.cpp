@@ -115,6 +115,12 @@ void Renderer::finishFrame(const Game &game, int, int, int, int, int) {
     loadOverlay();
     const auto &s = *game.state;
     const auto &p = s.plr1;
+    if(s.hitcol>0){
+        /* Original USEPLR hit flash, drawn once per eye at stable stereo
+         * depth. HUD remains readable over the brief world tint. */
+        glColor4f(.75f,0,0,.28f*std::clamp(s.hitcol/3840.f,0.f,1.f));
+        quad(0,-4,-3,8,6);++damageFlashDraws;
+    }
     glColor4f(.01f, .025f, .035f, .8f);
     quad(0, -.83f, -.68f, 1.66f, .235f);
     glColor4f(1, 1, 1, 1);

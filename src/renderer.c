@@ -16023,7 +16023,7 @@ int renderer_xr_decode_sprite(int vect, int frame, int width, int height, uint8_
             if(i+2>g_renderer.sprite_wad_size[vect])break;
             unsigned texel=((unsigned)(uint16_t)rd16(wad+i)>>(mode*5))&31;
             if(!texel)continue;
-            size_t po=7*64+texel*2;if(po+2>g_renderer.sprite_pal_size[vect])continue;
+            size_t po=texel*2;if(po+2>g_renderer.sprite_pal_size[vect])continue;
             unsigned color=(uint16_t)rd16(pal+po);size_t dest=((size_t)y*width+x)*4;
             rgba[dest]=((color>>8)&15)*17;rgba[dest+1]=((color>>4)&15)*17;rgba[dest+2]=(color&15)*17;rgba[dest+3]=255;
         }
@@ -16036,6 +16036,7 @@ int renderer_xr_decode_sprite(int vect, int frame, int width, int height, uint8_
 int renderer_xr_billboard_info(const GameObject *object,XrBillboardInfo *out){
     if(!object||!out)return 0;
     const uint8_t *obj=object->raw;
+    if(obj[6]==OBJ_3D_SPRITE)return 0;
     int type=(int8_t)obj[16],dead=0;
     int vector=rd16(obj+8),frame=rd16(obj+10);
     if(type==OBJ_NBR_DEAD&&renderer_dead_object_is_runtime_corpse(obj)){
@@ -16046,6 +16047,8 @@ int renderer_xr_billboard_info(const GameObject *object,XrBillboardInfo *out){
     if(!fallback&&vector==0&&type!=OBJ_NBR_ALIEN&&type>=OBJ_NBR_ROBOT&&type<=OBJ_NBR_FLAME_MARINE)fallback=1;
     if(fallback){vector=renderer_fallback_vect_for_obj_number(type);if(!dead)frame=0;}
     if(vector<0||vector>=MAX_SPRITE_TYPES)return 0;
+    int frame_count=sprite_frames_table[vector].count;
+    if(frame_count>0 && (frame<0 || frame>=frame_count))frame=0;
     int cols=obj[14]?obj[14]:32,rows=obj[15]?obj[15]:32;
     switch(type){
     case OBJ_NBR_WORM:cols=45;rows=50;break;
@@ -16057,6 +16060,7 @@ int renderer_xr_billboard_info(const GameObject *object,XrBillboardInfo *out){
     renderer_resolve_billboard_world_size_for_spill(obj,0,&out->width,&out->height);
     out->vector=vector;out->frame=frame;out->columns=cols*2;out->rows=rows*2;
     out->center_y=(int32_t)rd16(obj+4)*128;
+    out->brightness=rd16(obj+2);
     return 1;
 }
 int renderer_xr_shot_info(const GameObject *object,XrBillboardInfo *out){
@@ -16071,6 +16075,7 @@ int renderer_xr_explosion_info(const GameState *state,int index,XrBillboardInfo 
     renderer_get_explosion_frame_and_world_size(state,index,&out->frame,&out->width,&out->height);
     out->width*=EXPLOSION_SIZE_CORRECTION;out->height*=EXPLOSION_SIZE_CORRECTION;
     out->center_y=state->explosions[index].y_floor;
+    out->brightness=-128;
     return 1;
 }
 #endif

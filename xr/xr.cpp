@@ -1,4 +1,5 @@
 #include "xr.hpp"
+#include "aim.hpp"
 #include "locomotion.hpp"
 #include "render.hpp"
 #include <SDL.h>
@@ -498,8 +499,7 @@ bool XR::frame(Renderer &renderer, const Game &game) {
         Game viewGame = game;
         viewGame.wallFade = 0;
         const auto &player = game.state->plr1;
-        float yaw = player.angpos * (2.f * 3.14159265f / 8192) - x.yaw * (3.14159265f / 180);
-        float c = std::cos(yaw), s = std::sin(yaw);
+        float bodyYaw=player.angpos*(2.f*3.14159265f/8192),anchorYaw=x.yaw*(3.14159265f/180);
         float bodyX = player.xoff / 65536.f, bodyZ = player.zoff / 65536.f;
         float bodyY = player.yoff - game.crouchCompensation * 8192;
         // Use both predicted eye positions, including IPD. Keep the real poses
@@ -507,8 +507,9 @@ bool XR::frame(Renderer &renderer, const Game &game) {
         for (int i=0;i<2;++i) {
             float dx = views[i].pose.position.x - x.anchor.x;
             float dz = views[i].pose.position.z - x.anchor.z;
-            float ex = bodyX + (c*dx+s*dz)*32;
-            float ez = bodyZ + (-s*dx+c*dz)*32;
+            auto offset=engineVector({dx,0,dz},bodyYaw,anchorYaw);
+            float ex = bodyX + offset.x*32;
+            float ez = bodyZ + offset.z*32;
             float ey = bodyY - (views[i].pose.position.y-x.anchor.y)*8192;
             auto blocked = [&](float radius) {
                 return view_path_blocked(&game.state->level,player.zone,
@@ -520,6 +521,26 @@ bool XR::frame(Renderer &renderer, const Game &game) {
             else if (blocked(8)) viewGame.wallFade=std::max(viewGame.wallFade,.3f);
         }
         x.wallFade = viewGame.wallFade;
+        float laserLength=0;
+        auto muzzle=renderer.weapons.muzzle(player.gun_selected);
+        if(x.tracking.valid[1] && (!game.overlay || !game.overlay->menu)){
+            auto ray=weaponRay(x.tracking.hands[1],muzzle);
+            float dx=ray.origin.x-x.anchor.x,dz=ray.origin.z-x.anchor.z;
+            auto offset=engineVector({dx,0,dz},bodyYaw,anchorYaw);
+            float ox=bodyX+offset.x*32,oz=bodyZ+offset.z*32;
+            float oy=bodyY-(ray.origin.y-x.anchor.y)*8192;
+            if(!view_path_blocked(&game.state->level,player.zone,bodyX,bodyY,bodyZ,ox,oy,oz,1)){
+                int zone=level_find_zone_for_point(&game.state->level,int(ox),int(oz),player.zone);
+                auto direction=engineVector(ray.direction,bodyYaw,anchorYaw);
+                float vx=direction.x*32,vz=direction.z*32,vy=-direction.y*8192;
+                auto blocked=[&](float distance){return view_path_blocked(&game.state->level,zone,ox,oy,oz,
+                    ox+vx*distance,oy+vy*distance,oz+vz*distance,.15);};
+                float low=0,high=1.25f;
+                if(!blocked(high))low=high;
+                else for(int step=0;step<12;++step){float middle=(low+high)*.5f;if(blocked(middle))high=middle;else low=middle;}
+                laserLength=low;
+            }
+        }
         for (int i = 0; i < 2; i++) {
             auto &e = x.eyes[i];
             uint32_t index = 0;
@@ -582,6 +603,16 @@ bool XR::frame(Renderer &renderer, const Game &game) {
                     glMultMatrixf(m);
                     if(hand==1) {
                         renderer.weapons.draw(game.state->plr1.gun_selected,game.state->plr1.gun_frame);
+                        if(laserLength>.01f){
+                            glPushAttrib(GL_ALL_ATTRIB_BITS);
+                            glDisable(GL_TEXTURE_2D);glDisable(GL_LIGHTING);glDisable(GL_ALPHA_TEST);
+                            glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+                            glDepthMask(GL_FALSE);glColor4f(1,.18f,.035f,.8f);glLineWidth(2);
+                            glBegin(GL_LINES);
+                            glVertex3f(muzzle[0],muzzle[1],muzzle[2]);
+                            glVertex3f(muzzle[0],muzzle[1],muzzle[2]-laserLength);
+                            glEnd();glPopAttrib();++renderer.laserDraws;
+                        }
                     } else {
                     glDisable(GL_TEXTURE_2D);
                     glColor3f(hand ? .9f : .2f, hand ? .5f : .8f, .3f);

@@ -1,0 +1,91 @@
+Gameplay comparison and XR corrections — 2026-10-27
+
+Primary recordings inspected:
+1. World of Longplays / sirdo, Amiga Longplay Alien Breed 3D (a), 2009:
+   https://www.youtube.com/watch?v=AJjQopEx2D0
+   Excerpts 00:50–03:30 and 03:30–05:00. These include startup, the first
+   courtyard, medipacks, switches, coloured door indicators, small red aliens,
+   a marine encounter, firing, deaths and incoming damage flashes.
+2. World of Longplays / MadMatty, Amiga 1200 Longplay [097] Alien Breed 3D:
+   https://www.youtube.com/watch?v=uFLbFOkCRdc
+   Excerpt 00:45–02:15; dense frame sampling around 01:24–01:30 for combat.
+   Recording notes: https://longplays.org/infusions/longplays/longplays.php?longplay_id=16314
+   This is an accelerated A1200 recording with music/eight-channel audio
+   patches; it is a visual/gameplay reference, not a stock-hardware timing oracle.
+   The two recordings show different player routes and performance. No exact
+   fire-rate claim is derived from their uploaded video frame rates.
+
+Local comparison frames and short excerpts are in artifacts/original-gameplay/.
+Recordings are review material, not redistributed game assets. No footage or
+derived image is included in the runtime build.
+
+Observed reference behavior and source checks:
+- The first view looks into the courtyard, with recognizable panels, switches,
+  indicator lamps and solid polygon medipacks/crates. Original ObjDraw3 checks
+  object byte 6 == 0xFF and dispatches PolygonObj, not BitMapObj.
+- Attacks and kills have bright impact sprites/gibs; incoming damage briefly
+  tints the view red. USEPLR damage already sets hitcol in the C simulation,
+  but the previous XR overlay never displayed it.
+- Gameplay has generous target selection and distance-dependent hit rolls;
+  the original has no free vertical look. PlayerShoot.s and CalcPLR1InLine,
+  not video pixels alone, define the retained weapon rules. See ORIGINAL_TIMING.txt.
+- Original view depth is dx*sin + dz*cos, with +Z forward at initial angle 0
+  (renderer.c rotate_one_point; AB3DI.s RotatePoints). The GPU view previously
+  used that positive depth as OpenGL Z, putting the intended view behind the
+  camera. The 512px XR fixture showed a wall at spawn instead of the courtyard.
+
+Implemented corrections:
+- Reflect original world Z once in the GPU view. The same inverse conversion
+  now drives eye collision queries, controller muzzle positions, shooting rays,
+  head-oriented movement and laser clipping. Virtual right turns follow the
+  original positive engine angle; sprite facing accounts for reflected handedness.
+  This corrects the initial view without altering level positions or save layout.
+- Render the original ten PolygonObj model slots, their animation frames,
+  UVs and TextureMaps/OldTexturePalScaled materials as cached GPU geometry and
+  textures. 0xFF props no longer become 255-unit false billboard sprites.
+- Respect authored wall strip offsets, horizontal masks, vertical texture phase
+  and repeat scale. Type-13 see-through walls alpha-test palette index zero.
+- XR body wall collision uses a swept circle and sliding on solid boundaries
+  and closed portals, retaining original open-door, step and room transitions.
+  Eye safety fading remains separate from locomotion and does not move tracking.
+- Original sprite palette level zero is decoded once, with brightness applied
+  on GPU. Emissive projectiles no longer inherit an arbitrary middle-dark palette;
+  short palettes work, invalid animation indices use the original first-frame
+  fallback, and failed decodes are cached instead of retried each frame.
+- Show the original hitcol fadedown as a restrained red world tint beneath the
+  readable stereo HUD. Existing shot pools and original explosion/gib art remain
+  the effect sources.
+- Hitscan damage is independent of cosmetic impact-slot availability. Impact
+  artwork is valid on its creation frame. The original distance-dependent random
+  hit roll and weapon cadence remain in place.
+- Tracked projectiles use the full controller direction and existing gun speed,
+  rather than the inherited TKG mouse-look vertical clamp. Swept hit detection
+  intersects horizontal and vertical time intervals and resolves the earliest
+  3D contact, including vertical shots. A read-only wall query prevents generous
+  collision radii from reaching through solid boundaries. Impacts use contact Y.
+- A short (maximum 1.25 m) depth-tested laser projects from the named muzzle
+  socket. It shares the shot origin/direction and clips against live walls and
+  floor/ceiling openings. It is hidden in the pause menu or at a blocked muzzle.
+  This is a visual guide: it does not magnetize shots or select an aim-assist target.
+  Grenades retain their ballistic gravity, so the line shows initial barrel aim.
+
+Validation:
+- All 16 levels load/render on the actual offscreen GPU with original polygon
+  objects present. Stereo fixtures check laser draws in both eyes, effects,
+  head-relative movement, smooth/snap turning, height reset, save/load and wall fade.
+- A separate GPU check renders every animation frame of all ten original vector
+  models, checks visible textured pixels and captures artifacts/vector-gpu-test/.
+- Collision tests cover repeated sliding/retreat, open and closed portals,
+  live doors, head clearance and standing/low-ceiling calibration.
+- Production shooting tests cover damage with a full impact pool, steep launch
+  direction, 3D crossing/missing segments, actual damage and display-independent
+  weapon pacing. Tests also check emissive palette decoding and muzzle transforms.
+- Build and CTest logs: artifacts/gameplay-fidelity-{build,tests}.log.
+  Additional 512px-per-eye inspection: artifacts/gameplay-review/.
+
+Remaining comparison work:
+Curved walls, sky/water/light-beam effects, exact original polygon shading and
+every enemy/weapon/level combination are not yet at complete visual parity.
+Physical headset testing is still required for collision comfort, perceived
+prop scale, laser visibility and practical aiming. No active desktop or display
+manager was restarted, and no headset test was launched by these automated checks.

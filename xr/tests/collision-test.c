@@ -13,7 +13,7 @@ static void room(int id,int offset,int line) {
 }
 static void line(int id,int x,int target) {
     uint8_t *p=lines+id*16;
-    word(p,x);word(p+2,-64);word(p+4,0);word(p+6,128);
+    word(p,x);word(p+2,id<2?64:-64);word(p+4,0);word(p+6,id<2?-128:128);
     word(p+8,target);word(p+10,128);
 }
 int main(void) {
@@ -24,13 +24,30 @@ int main(void) {
     level->num_zones=level->num_zone_slots=2;
     room(0,0,0);room(1,64,1);
     line(0,32,-1);line(1,64,-1);line(2,32,0);
+    /* XR body uses continuous circle clearance, can slide along the wall,
+     * and can retreat without getting stuck on the original integer plane. */
+    MoveContext body;move_context_init(&body);body.spatial_body=1;
+    body.objroom=data;body.oldy=body.newy=-PLAYER_HEIGHT;body.thing_height=PLAYER_HEIGHT;
+    body.oldx=body.oldz=0;body.newx=16;body.newz=8;
+    move_object(&body,level);assert(body.hitwall && body.newx<=12 && body.newz==8);
+    for(int n=0;n<100;++n){
+        body.oldx=body.newx;body.oldz=body.newz;body.newx+=4;body.newz=(n%2)?8:12;
+        move_object(&body,level);assert(body.newx<=12);
+    }
+    body.oldx=body.newx;body.oldz=body.newz;body.newx=0;
+    move_object(&body,level);assert(body.newx==0);
     assert(!view_path_blocked(level,0,0,-12288,0,20,-12288,0,4));
     assert(view_path_blocked(level,0,0,-12288,0,30,-12288,0,4));
     assert(view_path_blocked(level,0,0,-12288,0,80,-12288,0,4));
+    assert(view_path_blocked(level,0,0,-12288,0,1000,-12288,0,.15)); // long projectile sweep
+    assert(!view_path_blocked(level,0,0,-12288,0,0,-12288,1000,.15)); // clear long LOS
     /* A stationary eye sphere must also detect a nearby wall. */
     assert(view_path_blocked(level,0,30,-12288,0,30,-12288,0,4));
     /* Portal traversal, then collision with the wall in the next room. */
     word(lines+8,1);word(data+64+50,2);word(data+64+52,-1);word(data+64+54,-2);
+    body.oldx=0;body.newx=40;body.oldz=body.newz=0;body.objroom=data;
+    move_object_substepped(&body,level);
+    assert(body.newx==40 && body.objroom==data+64);
     assert(!view_path_blocked(level,0,0,-12288,0,40,-12288,0,4));
     assert(view_path_blocked(level,0,0,-12288,0,80,-12288,0,4));
     /* Live closed door and ceiling/floor intrusion. */
@@ -54,6 +71,8 @@ int main(void) {
         assert(info.width>0 && info.columns>0 && info.rows>0);
     }
     GameObject flyer={0};XrBillboardInfo info={0};
+    GameObject prop={0};prop.raw[6]=OBJ_3D_SPRITE;
+    assert(!renderer_xr_billboard_info(&prop,&info)); // never a huge false sprite
     flyer.raw[16]=OBJ_NBR_FLYING_NASTY;flyer.raw[6]=flyer.raw[7]=32;
     word(flyer.raw+4,-128);word(flyer.raw+8,-1);
     assert(renderer_xr_billboard_info(&flyer,&info));
@@ -102,5 +121,13 @@ int main(void) {
     unsigned mask=0;for(int g=0;g<MAX_GUNS;++g)if(player_weapon_is_selectable(p,g))mask|=1u<<g;
     assert(mask==0x97 && GUN_KEY_COUNT==5 && !state.cfg_flamethrower_weapon && p->gun_selected==0);
     assert(strcmp(gun_names[0],"Mark IV Pulse Rifle")==0 && strcmp(gun_names[1],"Machine Gun")==0);
+    // Emissive enemy projectiles use the full-bright palette, not a fixed
+    // mid-dark shade. A short palette is also a valid sprite asset.
+    uint8_t wad[2]={0,32},ptr[4]={1,0,0,0},pal[64]={0},rgba[4]={0};
+    pal[2]=15;g_renderer.sprite_wad[2]=wad;g_renderer.sprite_wad_size[2]=sizeof(wad);
+    g_renderer.sprite_ptr[2]=ptr;g_renderer.sprite_ptr_size[2]=sizeof(ptr);
+    g_renderer.sprite_pal_data[2]=pal;g_renderer.sprite_pal_size[2]=sizeof(pal);
+    assert(renderer_xr_decode_sprite(2,0,1,1,rgba));
+    assert(rgba[0]==255 && rgba[1]==0 && rgba[2]==0 && rgba[3]==255);
     puts("PASS grounded/flying sprites, blocked footsteps, eye sweep, portals, live doors and ceilings");
 }

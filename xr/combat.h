@@ -20,3 +20,24 @@ static inline int abxr_weapon_click(int *pending,int pressed,int consume){
     *pending|=pressed!=0;
     int clicked=*pending;if(consume)*pending=0;return clicked;
 }
+/* First intersection of a 3D segment with an upright target cylinder. Y uses
+ * the engine's 256:1 vertical scale. Intersect horizontal AND vertical time
+ * intervals, rather than testing the projectile's final height only. */
+static inline int abxr_segment_cylinder(double sx,double sy,double sz,double ex,double ey,double ez,
+                                       double tx,double ty,double tz,double radius,double half_height,double *hit){
+    double dx=ex-sx,dz=ez-sz,dy=(ey-sy)/256.,ox=sx-tx,oz=sz-tz,oy=(sy-ty)/256.;
+    double lo=0,hi=1,a=dx*dx+dz*dz,b=2*(ox*dx+oz*dz),c=ox*ox+oz*oz-radius*radius;
+    if(a<1e-12){if(c>0)return 0;}
+    else{
+        double discriminant=b*b-4*a*c;if(discriminant<0)return 0;
+        double root=sqrt(discriminant),enter=(-b-root)/(2*a),leave=(-b+root)/(2*a);
+        lo=fmax(lo,enter);hi=fmin(hi,leave);
+    }
+    if(fabs(dy)<1e-12){if(fabs(oy)>half_height)return 0;}
+    else{
+        double t0=(-half_height-oy)/dy,t1=(half_height-oy)/dy;
+        lo=fmax(lo,fmin(t0,t1));hi=fmin(hi,fmax(t0,t1));
+    }
+    if(lo>hi)return 0;
+    *hit=lo;return 1;
+}

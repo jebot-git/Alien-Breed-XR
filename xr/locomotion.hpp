@@ -25,8 +25,8 @@ inline XrVector2f headOrientedMovement(XrVector2f stick, float headYaw, float an
         return {};
     float strength = std::min(1.f, (radius - deadzone) / (1.f - deadzone));
     float right = stick.x / radius * strength, forward = stick.y / radius * strength;
-    float yaw = bodyYaw + headYaw - anchorYaw, c = std::cos(yaw), s = std::sin(yaw);
-    return {c * right - s * forward, -s * right - c * forward};
+    float yaw = bodyYaw - headYaw + anchorYaw, c = std::cos(yaw), s = std::sin(yaw);
+    return {c * right + s * forward, -s * right + c * forward};
 }
 inline float trackedBodyHeight(float headY, float anchorY, float standing = 1.5f, float minimum = 1.f) {
     if (!std::isfinite(headY) || !std::isfinite(anchorY))

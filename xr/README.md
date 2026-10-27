@@ -11,11 +11,15 @@ in `amiga/`; upstream documentation is retained at the repository root.
 
 ## Implemented
 
-- Native OpenGL world rendering of the loaded level's walls, floor/roof polygons
-  and basic animated sprite billboards, with depth testing. Floor polygon
+- Native OpenGL world rendering of the loaded level's walls, floor/roof polygons,
+  original polygon props/robots and animated sprite billboards, with depth testing.
+  Original +Z view depth is converted consistently to OpenXR/OpenGL -Z forward.
+  Floor polygon
   topology is tessellated once and cached in GPU display lists; texture and
   sprite frames are decoded/uploaded on first use. Live wall/floor heights are
   reread so the original door/lift logic can update them.
+  Authored wall texture offsets/masks/repeat scale and see-through cutouts are
+  respected; original vector meshes and their materials are cached on the GPU.
 - Original movement, collision, AI, pickups, weapon logic, audio and level data.
   The original software world rasterizer is bypassed in the XR build.
 - OpenXR stereo projection layers using both runtime eye poses, asymmetric FOVs,
@@ -98,6 +102,12 @@ states and pump mechanisms. Models are loaded from executable-local
 `data/weapons/*.glb`, staged by CMake; missing assets are reported as an error.
 Controller shots originate at the named muzzle socket and are blocked when its
 path crosses a wall. The source/editable assets are in `xr/assets/weapons/`.
+The weapon projects a short, depth-tested laser (up to 1.25 m) from that same
+socket and direction, clipped against nearby walls and floor/ceiling openings.
+It is a visual aiming guide, hidden in the pause menu or at a blocked muzzle.
+Projectile launch follows the full tracked direction; grenade gravity still
+curves the path after launch. Incoming damage shows the original brief red
+hit flash beneath the readable HUD.
 The loader supports this unskinned GLB asset set (embedded PNGs, TRS/matrix
 nodes, opaque/blended materials, STEP/LINEAR animation), rather than every glTF
 extension. Geometry and textures remain on the GPU during normal playback.
@@ -123,6 +133,8 @@ clearance it becomes fully black, before the 5 cm near plane can expose the
 other side. Head tracking and the HUD remain active with a move-back prompt.
 Backing away restores the view. These checks do not activate wall switches,
 produce collision sounds, or displace the physical head pose.
+XR body movement uses a swept circular wall collider with sliding, while open
+doors, room transitions, stairs and low ceilings retain the original rules.
 
 Save/Load uses the original full game/level-state format in
 `$XDG_STATE_HOME/alien-breed-xr/savegame.bin` (default
@@ -138,15 +150,15 @@ Production rendering has no framebuffer readback; capture is explicit.
 ## Limits of this milestone
 
 This is a working source-port prototype, **not a completed VR conversion**.
-Curved-wall records, polygon models, complete sprite frame/type fallbacks,
+Curved-wall records, complete sprite frame/type fallbacks,
 water/bump effects, lighting/material accuracy, sky, weapon models and the
 original title/options menu presentation are not fully ported. Unknown/unavailable sprite
 frames have coloured markers. Floor texture scale and wall UV fidelity need
 further comparison with the original renderer. The original collision/AI still
 uses its authored room/zone representation; physical leaning has no new head or
 hand collision model. Shot origin changes are limited to a tracked controller
-within 1.5 m and the player's current zone. Vertical aim retains the original
-engine's signed aim-speed range (approximately ±45 degrees).
+within 1.5 m; unobstructed muzzles may extend into adjacent open rooms. Combat
+retains the original hit volumes and distance-dependent hitscan accuracy rules.
 
 There is no hand interaction/grabbing, two-handed weapon model, save-format
 migration or new FLTK settings window. Existing desktop settings remain in
@@ -203,6 +215,9 @@ actual offscreen GPU, with visible-pixel checks and captures under
 `artifacts/weapon-gpu-test/`. Footstep audio tests verify original sample
 durations and normal mixer consumption at 8007 and 48000 Hz. The stereo fixture
 checks model uploads, weapon draw calls in both eyes and weapon switching.
+The original-vector GPU check renders every frame of all ten original polygon
+models with their real materials, checks visible textured pixels and captures
+them under `artifacts/vector-gpu-test/`.
 
 Combat uses the controller ray in the original engine's +Z/sine-cosine convention.
 Player and enemy shot pools, impact particles and the separate explosion list
@@ -211,3 +226,6 @@ independent of 50Hz movement and headset presentation. See ORIGINAL_TIMING.txt
 for source locations, the variable original cadence, the chosen reference pace,
 and damage/rate tests. Reports distinguish actual_shots_fired from controller
 aim updates and include simulation VBlanks, elapsed time and rendered effects.
+
+See GAMEPLAY_REFERENCE.txt for the original gameplay recordings inspected,
+coordinate/prop/collision/aiming corrections, checks and remaining parity work.

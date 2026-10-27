@@ -97,6 +97,7 @@ static const int8_t gun_key_map[] = {
 
 static int16_t player_current_mouse_aim_speed(const GameState *state, int plr_num);
 static int32_t player_mouse_look_ray_y_delta_at_dist(int16_t aim_speed, int32_t doubled_dist);
+static int32_t player_shot_ray_y_delta(const GameState *state,const PlayerState *plr,int plr_num,int32_t distance);
 static int16_t player_mouse_look_ray_axis_at_dist(int16_t origin, int16_t dir, int32_t doubled_dist);
 static int16_t player_clamp_i16(int32_t value);
 
@@ -631,6 +632,18 @@ static void init_instant_pop_slot(GameObject *shot, int gun_idx, int16_t zone,
     SHOT_SET_ACCYPOS(*shot, accypos);
     obj_sw(shot->raw + 4, (int16_t)(accypos >> 7));
     shot->obj.worry = 127;
+#ifdef AB3D_XR
+    /* An impact must have valid artwork on its creation frame, before the
+     * next simulation pass advances the original pop sequence. */
+    if(gun_idx>=0 && gun_idx<MAX_BULLET_ANIM_IDX && bullet_pop_tables[gun_idx]){
+        const BulletAnimFrame *f=bullet_pop_tables[gun_idx];
+        if(f->width>=0){
+            shot->raw[6]=f->width;shot->raw[7]=f->height;
+            obj_sw(shot->raw+8,f->vect_num);obj_sw(shot->raw+10,f->frame_num);
+            shot->raw[14]=bullet_pop_src_cols[gun_idx];shot->raw[15]=bullet_pop_src_rows[gun_idx];
+        }
+    }
+#endif
 }
 
 static int32_t player_instant_y_spread_from_rand(int32_t rand_val)
@@ -649,6 +662,13 @@ static void spawn_instant_hit_effect(GameState *state, const PlayerState *plr, i
 {
     if (!state || !plr || !target) return;
     if (gun_idx < 0 || gun_idx >= MAX_BULLET_ANIM_IDX) return;
+
+#ifdef AB3D_XR
+    /* Exhausting cosmetic impact slots cannot cancel a successful hit. */
+    target->raw[19]=(uint8_t)(target->raw[19]+(uint8_t)shot_power);
+    NASTY_SET_IMPACTX(target,(int16_t)(((int32_t)dir_x*8)>>16));
+    NASTY_SET_IMPACTZ(target,(int16_t)(((int32_t)dir_z*8)>>16));
+#endif
 
     uint8_t *shot_pool = state->level.player_shot_data;
     if (!shot_pool) return;
@@ -678,12 +698,12 @@ static void spawn_instant_hit_effect(GameState *state, const PlayerState *plr, i
     {
         int32_t impact_y = ((int32_t)obj_w(target->raw + 4)) << 7;
         if (use_mouse_look_ray_impact && doubled_dist > 0) {
-            int16_t aim_speed = player_current_mouse_aim_speed(state, plr_num);
-            impact_y = plr->yoff + player_mouse_look_ray_y_delta_at_dist(aim_speed, doubled_dist);
+            impact_y = plr->yoff + player_shot_ray_y_delta(state,plr,plr_num,doubled_dist);
         }
         init_instant_pop_slot(impact, gun_idx, OBJ_ZONE(target), target->obj.in_top, impact_y);
     }
 
+#ifndef AB3D_XR
     {
         target->raw[19] = (uint8_t)(target->raw[19] + (uint8_t)shot_power);
     }
@@ -694,6 +714,7 @@ static void spawn_instant_hit_effect(GameState *state, const PlayerState *plr, i
         NASTY_SET_IMPACTX(target, impact_x);
         NASTY_SET_IMPACTZ(target, impact_z);
     }
+#endif
 }
 
 /* PlayerShoot.s PLR1MISSINSTANT/PLR2MISSINSTANT behavior (miss with a target):
@@ -760,12 +781,11 @@ static void spawn_instant_miss_effect_no_target(GameState *state, const PlayerSt
     int32_t oldy = plr->yoff + 20 * 128;
     int32_t newy = oldy + spread_y;
     if (state->cfg_mouse_look) {
-        int16_t aim_speed = player_current_mouse_aim_speed(state, plr_num);
         oldy = plr->yoff;
         /* The first instant trace step is 128 world units, i.e. doubled_dist=256
          * in PlayerShoot.s/CalcPLR*InLine scale. Keep the original #$fff/#$800
          * vertical miss spread around that fixed-reticle ray. */
-        newy = oldy + player_mouse_look_ray_y_delta_at_dist(aim_speed, 256) + spread_y;
+        newy = oldy + player_shot_ray_y_delta(state,plr,plr_num,256) + spread_y;
     }
 
     int16_t hit_x = 0, hit_z = 0;
@@ -1308,6 +1328,19 @@ static int32_t player_mouse_look_ray_y_delta_at_dist(int16_t aim_speed, int32_t 
     return player_round_div_i64((int64_t)aim_speed * (int64_t)doubled_dist, 256);
 }
 
+static int32_t player_shot_ray_y_delta(const GameState *state,const PlayerState *plr,int plr_num,int32_t distance)
+{
+#ifdef AB3D_XR
+    float x,y,z;
+    if(abxr_shot_direction(state,plr,&x,&y,&z)){
+        double horizontal=hypot(x,z);
+        double delta=-y/fmax(horizontal,.00001)*distance*128.;
+        return (int32_t)fmax(INT32_MIN/2.,fmin(INT32_MAX/2.,delta));
+    }
+#endif
+    return player_mouse_look_ray_y_delta_at_dist(player_current_mouse_aim_speed(state,plr_num),distance);
+}
+
 static int16_t player_mouse_look_ray_axis_at_dist(int16_t origin, int16_t dir, int32_t doubled_dist)
 {
     if (doubled_dist <= 0) return origin;
@@ -1680,6 +1713,9 @@ static void player_full_control(PlayerState *plr, GameState *state, int plr_num)
     ctx.oldy = yoff;
 
     ctx.thing_height = plr->height - bob_val;
+#ifdef AB3D_XR
+    ctx.spatial_body=abxr_active_controls(state,plr);
+#endif
 
     /* Step values */
     ctx.step_up_val = plr->ducked ? STEP_UP_DUCKED : STEP_UP_NORMAL;
@@ -3744,9 +3780,8 @@ static bool player_mouse_look_target_in_vertical_aim(const GameState *state,
 
     int64_t target_center_y = (int64_t)plr->yoff + (int64_t)ydiff;
     int64_t target_half_y = (int64_t)half_height << 7;
-    int16_t aim_speed = player_current_mouse_aim_speed(state, plr_num);
     int64_t ray_y = (int64_t)plr->yoff +
-                    (int64_t)player_mouse_look_ray_y_delta_at_dist(aim_speed, dist);
+                    (int64_t)player_shot_ray_y_delta(state,plr,plr_num,dist);
 
     return ray_y >= (target_center_y - target_half_y) &&
            ray_y <= (target_center_y + target_half_y);
@@ -4161,8 +4196,7 @@ static void player_shoot_internal(GameState *state, PlayerState *plr,
                     los_target_x = player_mouse_look_ray_axis_at_dist(hitscan_viewer_x, sin_val, dist);
                     los_target_z = player_mouse_look_ray_axis_at_dist(hitscan_viewer_z, cos_val, dist);
                     los_target_y = player_clamp_i16(
-                        (plr->yoff + player_mouse_look_ray_y_delta_at_dist(
-                            player_current_mouse_aim_speed(state, plr_num), dist)) >> 7);
+                        (plr->yoff + player_shot_ray_y_delta(state,plr,plr_num,dist)) >> 7);
                     have_los_target_point = true;
                 }
                 if (!have_los_target_point) continue;
@@ -4394,6 +4428,18 @@ static void player_shoot_internal(GameState *state, PlayerState *plr,
         int16_t final_yvel = state->cfg_mouse_look ?
             player_mouse_look_projectile_yvel(bulyspd) :
             player_legacy_projectile_yvel(gun, bulyspd);
+#ifdef AB3D_XR
+        float ray_x,ray_y,ray_z;
+        if(abxr_shot_direction(state,plr,&ray_x,&ray_y,&ray_z)){
+            /* Tracked 3D shots must follow the same ray as the barrel laser.
+             * The inherited TKG mouse-look clamp flattened steep shots.
+             * Preserve the gun's speed, gravity, damage and lifetime. */
+            double speed=ldexp(1.,shift-1);
+            SHOT_SET_XVEL(*bullet,(int32_t)lround(ray_x*speed*65536.));
+            SHOT_SET_ZVEL(*bullet,(int32_t)lround(ray_z*speed*65536.));
+            final_yvel=(int16_t)fmax(-32768.,fmin(32767.,lround(-ray_y*speed*256.)));
+        }
+#endif
         SHOT_SET_YVEL(*bullet, final_yvel);
         SHOT_POWER(*bullet) = player_projectile_power_for_shot(state, gun_idx, gun);
         SHOT_STATUS(*bullet) = 0;

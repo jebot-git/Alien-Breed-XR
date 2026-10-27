@@ -11,7 +11,6 @@ extern "C" {
 #include "movement.h"
 #include "player.h"
 #include "renderer.h"
-int renderer_xr_decode_sprite(int, int, int, int, uint8_t *);
 }
 namespace tempest {
 enum PauseItem { PauseResume, PauseTurning, PauseHeight, PauseSave, PauseLoad, PauseQuit, PauseCount };

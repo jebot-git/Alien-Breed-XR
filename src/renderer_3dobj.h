@@ -89,6 +89,11 @@ void poly_obj_set_texture_assets(const uint8_t *texture_maps, size_t texture_map
  * enabled != 0: use object frame number (allows animated 3D objects). */
 void poly_obj_set_use_object_frame(int enabled);
 
+#ifdef AB3D_XR
+/* Decode an original polygon material once for the GPU texture cache. */
+int poly_obj_xr_texture(uint16_t map, int holes, uint8_t *rgba);
+#endif
+
 /*
  * Draw a 3D vector/polygon object at its view-space position.
  *   obj    - raw 64-byte object data (Amiga big-endian)

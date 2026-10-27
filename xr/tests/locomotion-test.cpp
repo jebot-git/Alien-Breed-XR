@@ -1,4 +1,5 @@
 #include "locomotion.hpp"
+#include "aim.hpp"
 #include <cassert>
 #include <limits>
 using namespace tempest;
@@ -10,21 +11,36 @@ void direction(XrVector2f input, float head, float anchor, float body, float x, 
 }
 } // namespace
 int main() {
-    // Cardinal movements in the visible OpenGL world, independent of the
-    // original engine's +Z keyboard-forward convention.
-    direction({0, 1}, 0, 0, 0, 0, -1);
-    direction({0, -1}, 0, 0, 0, 0, 1);
+    // The laser and shots share the named muzzle origin under 90-degree
+    // hand yaw/pitch, including the controller translation.
+    XrPosef hand{{0,0,0,1},{1,2,3}};
+    auto ray=weaponRay(hand,{0,0,-.4f});
+    assert(std::abs(ray.origin.z-2.6f)<.0001f && ray.direction.z==-1);
+    hand.orientation={0,.70710678f,0,.70710678f};ray=weaponRay(hand,{0,0,-.4f});
+    assert(std::abs(ray.origin.x-.6f)<.0001f && std::abs(ray.direction.x+1)<.0001f);
+    hand.orientation={.70710678f,0,0,.70710678f};ray=weaponRay(hand,{0,0,-.4f});
+    assert(std::abs(ray.origin.y-2.4f)<.0001f && std::abs(ray.direction.y-1)<.0001f);
+    // Original +Z-forward world. Reflection in the GPU view must agree with
+    // movement and hand/eye world queries, including physical and virtual yaw.
+    auto world=engineVector({0,0,-1},0,0);
+    assert(world.x==0 && world.z==1);
+    world=engineVector({0,0,-1},pi/2,0);
+    assert(std::abs(world.x-1)<.0001f && std::abs(world.z)<.0001f);
+    world=engineVector({-1,0,0},0,pi/2);
+    assert(std::abs(world.x)<.0001f && std::abs(world.z-1)<.0001f);
+    direction({0, 1}, 0, 0, 0, 0, 1);
+    direction({0, -1}, 0, 0, 0, 0, -1);
     direction({1, 0}, 0, 0, 0, 1, 0);
     direction({-1, 0}, 0, 0, 0, -1, 0);
     direction({0, 1}, pi / 2, 0, 0, -1, 0); // head turns left, forward follows gaze
-    direction({1, 0}, pi / 2, 0, 0, 0, -1); // strafe right relative to that gaze
+    direction({1, 0}, pi / 2, 0, 0, 0, 1); // strafe right relative to that gaze
     direction({0, 1}, -pi / 2, 0, 0, 1, 0);
-    direction({0, 1}, pi, 0, 0, 0, 1);
-    direction({0, 1}, pi / 2, pi / 2, 0, 0, -1);      // recentered tracking origin
-    direction({0, 1}, pi / 2, pi / 2, -pi / 2, 1, 0); // virtual right turn composes with tracking
-    direction({0, 1}, pi / 2, 0, -pi / 2, 0, -1);     // physical and virtual turns cancel
+    direction({0, 1}, pi, 0, 0, 0, -1);
+    direction({0, 1}, pi / 2, pi / 2, 0, 0, 1);      // recentered tracking origin
+    direction({0, 1}, pi / 2, pi / 2, pi / 2, 1, 0); // virtual right turn composes with tracking
+    direction({0, 1}, pi / 2, 0, pi / 2, 0, 1);     // physical and virtual turns cancel
     direction({.1f, .1f}, 0, 0, 0, 0, 0);
-    direction({0, .6f}, 0, 0, 0, 0, -.5f); // analog speed after radial deadzone
+    direction({0, .6f}, 0, 0, 0, 0, .5f); // analog speed after radial deadzone
     assert(std::abs(trackedBodyHeight(1.6f, 1.6f) - 1.5f) < .0001f);
     assert(std::abs(trackedBodyHeight(1.3f, 1.6f) - 1.24f) < .0001f);
     assert(std::abs(trackedBodyHeight(.7f, 1.6f) - 1.f) < .0001f);

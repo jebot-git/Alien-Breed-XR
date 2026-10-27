@@ -19,6 +19,9 @@
 #include "math_tables.h"
 #include "audio.h"
 #include "visibility.h"
+#ifdef AB3D_XR
+#include "combat.h"
+#endif
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -4608,6 +4611,9 @@ void object_handle_bullet(GameObject *obj, GameState *state)
     int64_t best_hit_t = 0;
     int32_t best_hit_x = seg_end_x;
     int32_t best_hit_z = seg_end_z;
+#ifdef AB3D_XR
+    int32_t best_hit_y=accypos;
+#endif
     int best_hit_idx = -1;
     GameObject *best_target = NULL;
 
@@ -4644,12 +4650,14 @@ void object_handle_bullet(GameObject *obj, GameState *state)
 
         /* Height check (Anims.s: abs(target_y - bullet_y) <= half_height). */
         const CollisionBox *box = &col_box_table[tgt_type];
+#ifndef AB3D_XR
         int16_t ydiff = (int16_t)(obj_w(obj->raw + 4) - obj_w(target->raw + 4));
         if (ydiff < 0) ydiff = (int16_t)(-ydiff);
         if (ydiff > box->half_height) {
             check_idx++;
             continue;
         }
+#endif
 
         /* Position (Amiga: (a1,d0.w*8) = target point index). */
         int16_t target_cid = OBJ_CID(target);
@@ -4667,6 +4675,23 @@ void object_handle_bullet(GameObject *obj, GameState *state)
         int64_t cand_t = 0;
         int32_t cand_hit_x = seg_end_x;
         int32_t cand_hit_z = seg_end_z;
+#ifdef AB3D_XR
+        double fraction;
+        int32_t end_y=(!ctx.wallbounce && ctx.hitwall)?ctx.wall_hit_y+5*128:accypos;
+        if(!abxr_segment_cylinder(seg_start_x,old_accypos,seg_start_z,seg_end_x,end_y,seg_end_z,
+                                 tx,obj_w(target->raw+4)*128,tz,hit_radius,box->half_height*.5,&fraction)){
+            check_idx++;continue;
+        }
+        cand_t=(int64_t)(fraction*1000000000.);
+        cand_hit_x=(int32_t)lround(seg_start_x+(seg_end_x-seg_start_x)*fraction);
+        cand_hit_z=(int32_t)lround(seg_start_z+(seg_end_z-seg_start_z)*fraction);
+        int32_t cand_hit_y=(int32_t)lround(old_accypos+(end_y-old_accypos)*fraction);
+        /* A generous original hit radius must not reach through a wall. */
+        if(state->level.data && view_path_blocked(&state->level,bullet_zone_idx,
+             seg_start_x,old_accypos,seg_start_z,tx,cand_hit_y,tz,.15)){
+            check_idx++;continue;
+        }
+#else
         if (!bullet_segment_hits_target_radius(seg_start_x, seg_start_z,
                                                seg_end_x, seg_end_z,
                                                tx, tz, hit_radius,
@@ -4675,12 +4700,16 @@ void object_handle_bullet(GameObject *obj, GameState *state)
             check_idx++;
             continue;
         }
+#endif
 
         if (!have_hit || cand_t < best_hit_t) {
             have_hit = true;
             best_hit_t = cand_t;
             best_hit_x = cand_hit_x;
             best_hit_z = cand_hit_z;
+#ifdef AB3D_XR
+            best_hit_y=cand_hit_y;
+#endif
             best_hit_idx = check_idx;
             best_target = target;
         }
@@ -4736,6 +4765,9 @@ void object_handle_bullet(GameObject *obj, GameState *state)
         (shot_size >= 0 && shot_size < 8) ?
         object_shot_explosive_force(state, obj, shot_size) : 0;
     bool explosive_projectile_hit = hit_explosive_force > 0;
+#ifdef AB3D_XR
+    accypos=best_hit_y;SHOT_SET_ACCYPOS(*obj,accypos);
+#endif
     bool flame_hits_enemy =
         shot_size == AB3D_GUN_FLAMETHROWER &&
         best_hit_idx >= 0 &&

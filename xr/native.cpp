@@ -1,5 +1,6 @@
 #include "native.h"
 #include "combat.h"
+#include "aim.hpp"
 #include "domed.hpp"
 #include "game.hpp"
 #include "locomotion.hpp"
@@ -34,6 +35,7 @@ PlayerState shotBackup;
 int16_t aimBackup = 0;
 bool lookBackup = false;
 bool shotOverride = false;
+XrVector3f shotDirection{};
 int8_t heldFireBackup=0,clickedBackup=0;
 bool shotInputSuppressed=false;
 unsigned long simulationTicks=0,logicPasses=0,actualShots=0;
@@ -219,7 +221,7 @@ static int startup(int argc, char **argv) {
             std::cout
                 << "Alien Breed XR [--xr|--desktop] [--level 1..16] [--frames N] [--capture PPM] [--report "
                    "JSON]\nF8: XR/desktop | Escape: pause | Enter: resume | R: recenter | Ctrl+Q: quit\nXR: "
-                   "left stick move, right stick snap turn, right trigger fire, A/X use, left menu pause\n";
+                   "left stick move, right stick turn, right trigger fire, A/X use, left menu pause\n";
             return 1;
         }
     }
@@ -364,14 +366,14 @@ extern "C" int abxr_poll(void *data) {
             if (overlay.smoothTurn) {
                 float value =
                     std::abs(t.turn.x) > .2f ? std::copysign((std::abs(t.turn.x) - .2f) / .8f, t.turn.x) : 0;
-                turnFraction -= value * 90.f * dt * 8192.f / 360.f;
+                turnFraction += value * 90.f * dt * 8192.f / 360.f;
                 int delta = int(turnFraction);
                 turnFraction -= delta;
                 state.plr1.s_angpos = (state.plr1.s_angpos + delta) & 8191;
                 state.plr1.angpos = state.plr1.s_angpos;
             } else {
                 if (std::abs(t.turn.x) > .65f && !snapHeld) {
-                    state.plr1.s_angpos = (state.plr1.s_angpos + (t.turn.x > 0 ? -683 : 683)) & 8191;
+                    state.plr1.s_angpos = (state.plr1.s_angpos + (t.turn.x > 0 ? 683 : -683)) & 8191;
                     state.plr1.angpos = state.plr1.s_angpos;
                     snapHeld = true;
                 }
@@ -456,6 +458,10 @@ extern "C" int abxr_accelerate(void *data, void *player, int32_t *x, int32_t *z,
 extern "C" int abxr_aim_active(const void *data,const void *player){
     return shotOverride && player==&static_cast<const GameState*>(data)->plr1;
 }
+extern "C" int abxr_shot_direction(const void *data,const void *player,float *x,float *y,float *z){
+    if(!abxr_aim_active(data,player))return 0;
+    *x=shotDirection.x;*y=shotDirection.y;*z=shotDirection.z;return 1;
+}
 extern "C" void abxr_logic_tick(void *data){
     auto &s=*static_cast<GameState*>(data);
     if(!logicPasses)firstLogicMs=s.current_ticks_ms;
@@ -481,21 +487,14 @@ extern "C" void abxr_begin_shot(void *data) {
     auto pose = t.hands[1];
     float gripX=pose.position.x-t.anchor.x,gripY=pose.position.y-t.anchor.y,gripZ=pose.position.z-t.anchor.z;
     if(gripX*gripX+gripY*gripY+gripZ*gripZ>2.25f)return;
-    auto q = pose.orientation;
-    auto muzzle = renderer.weapons.muzzle(s.plr1.gun_selected);
-    // Transform the model's named muzzle socket by the same aim pose used to
-    // render its grip; never launch a projectile from the controller's centre.
-    float mx=muzzle[0],my=muzzle[1],mz=muzzle[2];
-    pose.position.x+=(1-2*(q.y*q.y+q.z*q.z))*mx+2*(q.x*q.y-q.w*q.z)*my+2*(q.x*q.z+q.w*q.y)*mz;
-    pose.position.y+=2*(q.x*q.y+q.w*q.z)*mx+(1-2*(q.x*q.x+q.z*q.z))*my+2*(q.y*q.z-q.w*q.x)*mz;
-    pose.position.z+=2*(q.x*q.z-q.w*q.y)*mx+2*(q.y*q.z+q.w*q.x)*my+(1-2*(q.x*q.x+q.y*q.y))*mz;
-    float dx = -2 * (q.x * q.z + q.w * q.y), dy = -2 * (q.y * q.z - q.w * q.x),
-          dz = -(1 - 2 * (q.x * q.x + q.y * q.y));
-    float yaw = angle(s) - t.anchorYaw * 3.14159265f / 180, c = cosf(yaw), v = sinf(yaw);
+    auto ray=weaponRay(pose,renderer.weapons.muzzle(s.plr1.gun_selected));
+    pose.position=ray.origin;
+    float dx=ray.direction.x,dy=ray.direction.y,dz=ray.direction.z;
     float x = pose.position.x - t.anchor.x, z = pose.position.z - t.anchor.z,
           y = pose.position.y - t.anchor.y;
-    float wx = s.plr1.xoff / 65536.f + (c * x + v * z) * 32,
-          wz = s.plr1.zoff / 65536.f + (-v * x + c * z) * 32;
+    auto offset=engineVector({x,y,z},angle(s),t.anchorYaw*3.14159265f/180);
+    float wx = s.plr1.xoff / 65536.f + offset.x * 32,
+          wz = s.plr1.zoff / 65536.f + offset.z * 32;
     // The longer visible barrel can cross a wall while the grip remains in
     // the room. Sweep to its muzzle without setting wall-use/touch flags.
     float bodyY=s.plr1.yoff-crouchCompensation(s)*8192;
@@ -511,7 +510,8 @@ extern "C" void abxr_begin_shot(void *data) {
     lookBackup = s.cfg_mouse_look;
     s.cfg_mouse_look = true;
     shotOverride = true;
-    float ax = c * dx + v * dz, az = -v * dx + c * dz;
+    shotDirection=engineVector({dx,dy,dz},angle(s),t.anchorYaw*3.14159265f/180);
+    float ax=shotDirection.x,az=shotDirection.z;
     s.plr1.xoff = int32_t(wx * 65536);
     s.plr1.zoff = int32_t(wz * 65536);
     s.plr1.yoff -= int32_t((y + crouchCompensation(s)) * 8192);
@@ -599,6 +599,10 @@ extern "C" void abxr_present(void *data) {
                                   {"simulation_elapsed_ms", state.current_ticks_ms-firstLogicMs},
                                   {"shot_billboards_rendered", renderer.shotBillboardsRendered},
                                   {"explosion_billboards_rendered", renderer.explosionBillboardsRendered},
+                                  {"vector_objects_rendered", renderer.vectorObjectsRendered},
+                                  {"vector_meshes_uploaded", renderer.vectorMeshesUploaded},
+                                  {"aim_laser_draws", renderer.laserDraws},
+                                  {"damage_flash_draws", renderer.damageFlashDraws},
                                   {"weapon_models_loaded", renderer.weapons.loaded()},
                                   {"weapon_draws", renderer.weapons.draws},
                                   {"weapon_gpu_triangles", renderer.weapons.triangles},

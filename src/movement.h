@@ -45,6 +45,7 @@ typedef struct {
     int16_t  wall_xsize;           /* WALLXLEN for bounce reflection */
     int16_t  wall_zsize;           /* WALLZLEN for bounce reflection */
     int16_t  wall_length;          /* wall length divisor for reflection */
+    int8_t   spatial_body;         /* XR player's swept circular wall collider */
 } MoveContext;
 
 /* -----------------------------------------------------------------------
@@ -69,7 +70,8 @@ void move_object(MoveContext *ctx, LevelState *level);
  */
 void move_object_substepped(MoveContext *ctx, LevelState *level);
 
-/* Read-only swept eye sphere. X/Z and radius use original horizontal world
+/* Read-only swept sphere for eyes, muzzle guides and projectile LOS.
+ * X/Z and radius use original horizontal world
  * units; Y uses original vertical fixed point (256 per horizontal unit).
  * Traverses open portals using live floor/roof heights; never tags wall use
  * flags, moves the player, or triggers sounds. */

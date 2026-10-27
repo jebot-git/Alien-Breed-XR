@@ -7,6 +7,7 @@
 #include <EGL/egl.h>
 #include <GL/gl.h>
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -127,8 +128,10 @@ XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateViewConfigurationViews(XrInstance, XrS
         return capacity ? XR_ERROR_SIZE_INSUFFICIENT : XR_SUCCESS;
     for (int i = 0; i < 2; ++i) {
         out[i] = {XR_TYPE_VIEW_CONFIGURATION_VIEW};
-        out[i].recommendedImageRectWidth = out[i].recommendedImageRectHeight = 128;
-        out[i].maxImageRectWidth = out[i].maxImageRectHeight = 128;
+        unsigned size=128;
+        if(const char *value=std::getenv("ABXR_TEST_EYE_SIZE"))size=std::max(128,std::min(1024,std::atoi(value)));
+        out[i].recommendedImageRectWidth = out[i].recommendedImageRectHeight = size;
+        out[i].maxImageRectWidth = out[i].maxImageRectHeight = size;
         out[i].recommendedSwapchainSampleCount = out[i].maxSwapchainSampleCount = 1;
     }
     return XR_SUCCESS;

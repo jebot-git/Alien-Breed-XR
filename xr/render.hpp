@@ -2,6 +2,7 @@
 #include "game.hpp"
 #include "weapon.hpp"
 #include <map>
+#include <array>
 #include <string>
 #include <vector>
 namespace tempest {
@@ -17,13 +18,20 @@ class Renderer {
     void number(int, int, float, float, float);
     int cachedLevel = -1;
     std::map<const uint8_t *, unsigned> polygons;
+    std::map<int,unsigned> vectorMeshes,vectorTextures;
+    std::map<std::array<int,6>,unsigned> wallTextures;
+    unsigned wallTexture(int id,int rows,int shift,int mask,int offset,bool holes);
+    unsigned vectorTexture(int map,bool holes);
     void floor(const LevelState &, const uint8_t *, int, float);
     unsigned texture(int id, int rows = 64);
 
   public:
+    void vectorObject(const GameObject *,float x,float z);
     WeaponRenderer weapons;
     unsigned long triangles = 0;
     unsigned long shotBillboardsRendered=0,explosionBillboardsRendered=0;
+    unsigned long vectorObjectsRendered=0,vectorMeshesUploaded=0;
+    unsigned long laserDraws=0,damageFlashDraws=0;
     void world(const Game &game, bool xr);
     void finishFrame(const Game &, int, int, int, int, int);
     void desktop(const Game &, int w, int h);

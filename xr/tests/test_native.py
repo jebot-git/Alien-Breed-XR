@@ -32,6 +32,7 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
         print('level',level,'returncode',result.returncode,'triangles',data['gpu_triangles'],flush=True)
         assert result.returncode==0 and data['frames']==12 and data['gpu_triangles']>100 and data['level']==level,data
         assert not data['domed_managed']
+        assert data['vector_objects_rendered']>0 and data['vector_meshes_uploaded']>0,data
     eyes=OUT/'eyes.txt';eyes.unlink(missing_ok=True)
     env.update(LD_PRELOAD=str(BUILD/'libab3d-mock-openxr.so'),ABXR_TEST_EYES=str(eyes))
     result=subprocess.run([binary,'--xr','--frames','110','--report',OUT/'xr.json','--capture',OUT/'mirror.ppm'],env=env,capture_output=True,text=True,timeout=35)
@@ -42,7 +43,7 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     assert data['weapon_previous_actions']==1 and data['weapon_next_actions']==1 and data['weapon_changes']>=2,data
     assert data['physical_height_min_m']<1.2 and data['engine_height_min_m']<1.2 and data['engine_height_m']>1.4,data
     assert data['movement_samples']>0 and data['movement_first_world_xz'][0]<-.3 and abs(data['movement_first_world_xz'][1])<.02,data
-    assert data['smooth_turn'] and 345<data['virtual_yaw_deg']<359,data
+    assert data['smooth_turn'] and 1<data['virtual_yaw_deg']<15,data
     assert data['xr_entries']==1 and data['controller_shots']>4 and data['xr_suspends']==0,data
     assert data['weapon_models_loaded']==5 and data['weapon_draws']==220 and data['weapon_gpu_triangles']>100,data
     assert data['weapon_slots_drawn'] & 1 and data['weapon_slots_drawn'] != 1,data
@@ -51,6 +52,7 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     assert data['wall_blocked_frames']==0 and data['wall_fade']==0,data
     assert data['actual_shots_fired']>0 and data['actual_shots_fired']<12,data
     assert data['shot_billboards_rendered']>0,data
+    assert data['aim_laser_draws']>100,data
     assert abs(data['simulation_vblanks']-data['simulation_elapsed_ms']/20)<4,data
     assert data['minimum_shot_interval_ms']==0 or data['minimum_shot_interval_ms']>=135,data
     hashes=[line.split() for line in eyes.read_text().splitlines()]
@@ -64,7 +66,7 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     menu=json.loads((OUT/'menu.json').read_text())
     assert result.returncode==0 and menu['xr_entries']==1 and menu['xr_suspends']==0,menu
     assert menu['menu_opens']==2 and menu['smooth_turn'] and menu['saves']==1 and menu['loads']==1,menu
-    assert .5<360-menu['virtual_yaw_deg']<25,menu
+    assert .5<menu['virtual_yaw_deg']<25,menu
     assert menu['frames']<100 and menu['menu_selection']==5,menu
     assert menu['height_resets']==1 and menu['height_calibration_y']>1.85,menu
     assert abs(menu['head_height_offset_m'])<.05 and menu['engine_height_m']>1.4,menu

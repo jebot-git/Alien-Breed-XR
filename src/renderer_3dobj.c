@@ -757,6 +757,21 @@ static uint16_t sample_poly_palette_cw(uint8_t pal_idx, int shade_level)
                        (uint16_t)g_poly_tex_pal[pal_off + 1u]);
 }
 
+#ifdef AB3D_XR
+int poly_obj_xr_texture(uint16_t map, int holes, uint8_t *rgba)
+{
+    if(!rgba || !poly_textures_ready())return 0;
+    for(int y=0;y<64;++y)for(int x=0;x<64;++x){
+        uint8_t index=sample_poly_texel_index(map,x*65536,y*65536);
+        uint16_t color=sample_poly_palette_cw(index,0);
+        uint8_t *p=rgba+(y*64+x)*4;
+        p[0]=((color>>8)&15)*17;p[1]=((color>>4)&15)*17;p[2]=(color&15)*17;
+        p[3]=(holes && !index)?0:255;
+    }
+    return 1;
+}
+#endif
+
 static inline int poly_pixel_behind_wall(int x, int y, int32_t z_view)
 {
     if (x < 0 || x >= g_renderer.width || y < 0 || y >= g_renderer.height) return 1;

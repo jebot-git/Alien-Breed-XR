@@ -692,6 +692,14 @@ static bool do_wall_slide_radius(MoveContext* ctx,
         double nx = 0.0, nz = 0.0;
         double dist = point_segment_distance_and_normal(px, pz, ax, az, bx, bz, &nx, &nz);
 
+        /* A small step can cross a thin segment. Keep the circle on the side
+         * it approached from instead of pushing it out on the far side. */
+        if(ctx->spatial_body){
+            double ox=0,oz=0;
+            point_segment_distance_and_normal(ctx->oldx,ctx->oldz,ax,az,bx,bz,&ox,&oz);
+            if(nx*ox+nz*oz<0){nx=-nx;nz=-nz;dist=-dist;}
+        }
+
         if (dist >= radius_scaled) return false;
 
         /* Push out by penetration depth + small epsilon to avoid re-hitting due to rounding. */
@@ -886,7 +894,7 @@ bool view_path_blocked(const LevelState *level, int zone,
                       double x1, double y1, double z1, double radius)
 {
     if (!level || !level->data || !level->floor_lines || !isfinite(x0+y0+z0+x1+y1+z1) ||
-        radius <= 0 || fabs(x1-x0)+fabs(z1-z0) > 320 || fabs(y1-y0) > 81920)
+        radius <= 0 || fabs(x1-x0)+fabs(z1-z0) > 65536 || fabs(y1-y0) > 16777216)
         return true;
     const double dx=x1-x0, dz=z1-z0, dy=y1-y0;
     double start=0;
@@ -1079,13 +1087,20 @@ static int check_wall_line(MoveContext* ctx, LevelState* level,
         }
     }
 
+    /* XR uses a continuous circle for solid walls and closed portals. Open
+     * exits still use the original room/step transition code below. */
+    bool spatial_solid=false;
+    if(ctx->spatial_body){
+        spatial_solid=!has_target_zone ||
+            !transition_height_ok_zone_for_mover(ctx,ctx->newy,level,connect_index,target_zone,NULL);
+    }
     /* Amiga checkotherwalls uses its own integer hit test (no radius slide). */
-    if (pass_is_other && ctx->extlen != 0) {
+    if (!spatial_solid && pass_is_other && ctx->extlen != 0) {
         return check_wall_line_otherpass_asm(ctx, fline, lx, lz, lxlen, lzlen, a4, a6, xdiff, zdiff);
     }
 
     /* Amiga checkwalls uses integer wall math for all movers, including extlen==0 bullets. */
-    if (pass_is_walls) {
+    if (!spatial_solid && pass_is_walls) {
         return check_wall_line_walls_asm(ctx, fline, lx, lz, lxlen, lzlen, line_len,
             a4, a6, level, connect_index, has_target_zone ? target_zone : NULL, xdiff, zdiff);
     }

@@ -5,8 +5,14 @@
 #undef main
 #include "combat.h"
 static int xr_aim=0,fired=0;
+static int use_ray=0;
+static float direction[3];
 int audio_distance_volume(int volume,int x,int z){(void)volume;(void)x;(void)z;return 255;}
 int abxr_aim_active(const void *state,const void *player){(void)state;(void)player;return xr_aim;}
+int abxr_shot_direction(const void *state,const void *player,float *x,float *y,float *z){
+ (void)state;(void)player;if(!xr_aim || !use_ray)return 0;
+ *x=direction[0];*y=direction[1];*z=direction[2];return 1;
+}
 void abxr_shot_fired(void *state,const void *player,int gun){(void)state;(void)player;(void)gun;++fired;}
 static GameState state;
 static GameObject targets[2],shots[PLAYER_SHOT_SLOT_COUNT];
@@ -27,6 +33,45 @@ static void aim(float x,float z){
 }
 int main(void){
  legacy_checks_main();
+ // Vertical and steep shots intersect throughout the segment, and a high
+ // endpoint cannot manufacture a hit after passing beneath an enemy.
+ double hit=0;
+ assert(abxr_segment_cylinder(0,0,0,0,-8192,0,0,-4096,0,20,2,&hit));
+ assert(hit>.4 && hit<.6);
+ assert(abxr_segment_cylinder(0,0,0,100,-12800,0,50,-6400,0,10,5,&hit));
+ assert(!abxr_segment_cylinder(0,0,0,100,-12800,0,20,-12800,0,10,5,&hit));
+ // Preserve the exact tracked barrel direction for steep projectiles.
+ setup(1);aim(0,-1);OBJ_SET_ZONE(&targets[0],-1);use_ray=1;
+ direction[0]=0;direction[1]=.8660254f;direction[2]=-.5f;
+ player1_shoot(&state);
+ assert(abs(SHOT_XVEL(shots[0]))<2 && abs(SHOT_ZVEL(shots[0])+8*65536)<2);
+ assert(abs(SHOT_YVEL(shots[0])+3547)<2);
+ use_ray=0;
+ // Exercise the real projectile handler: crossing the target vertically
+ // during a tick must count even when its endpoint is above the hit volume.
+ setup(1);aim(0,-1);OBJ_SET_ZONE(&targets[0],-1);player1_shoot(&state);
+ OBJ_SET_ZONE(&targets[0],0);obj_sw(points+4,-150);obj_sw(targets[0].raw+4,-31);
+ SHOT_SET_ACCYPOS(shots[0],0);obj_sw(shots[0].raw+4,0);
+ SHOT_SET_YVEL(shots[0],-20000);SHOT_SET_ZVEL(shots[0],-300*65536);
+ object_handle_bullet(&shots[0],&state);assert(targets[0].raw[19]==16);
+ assert(SHOT_ACCYPOS(shots[0])<0 && SHOT_ACCYPOS(shots[0])>-20000);
+ // A target whose generous hit radius protrudes through a solid wall must
+ // remain protected by that wall in the production handler.
+ setup(1);aim(0,-1);OBJ_SET_ZONE(&targets[0],-1);player1_shoot(&state);
+ static uint8_t room_data[64],room_adds[4],wall[16];
+ memset(room_data,0,sizeof(room_data));memset(wall,0,sizeof(wall));
+ obj_sl(room_data+6,-32768);obj_sw(room_data+32,48);
+ obj_sw(room_data+48,0);obj_sw(room_data+50,-1);obj_sw(room_data+52,-2);
+ obj_sw(wall,64);obj_sw(wall+2,-100);obj_sw(wall+4,-128);obj_sw(wall+8,-1);obj_sw(wall+10,128);
+ state.level.data=room_data;state.level.data_byte_count=sizeof(room_data);state.level.zone_adds=room_adds;
+ state.level.floor_lines=wall;state.level.num_floor_lines=1;state.level.num_zones=state.level.num_zone_slots=1;
+ OBJ_SET_ZONE(&targets[0],0);obj_sw(points+4,-200);
+ for(int tick=0;tick<20 && !SHOT_STATUS(shots[0]);++tick)object_handle_bullet(&shots[0],&state);
+ assert(targets[0].raw[19]==0 && SHOT_STATUS(shots[0]));
+ // A full cosmetic pool must not eat successful damage.
+ setup(0);aim(0,-1);obj_sw(points,0);obj_sw(points+4,-200);
+ for(int i=0;i<PLAYER_SHOT_SLOT_COUNT;++i)OBJ_SET_ZONE(&shots[i],0);
+ player1_shoot(&state);assert(targets[0].raw[19]==4);
  for(int cardinal=0;cardinal<4;++cardinal){
   const float x[]={0,-1,0,1},z[]={-1,0,1,0};
   setup(0);aim(x[cardinal],z[cardinal]);obj_sw(points,(int)(x[cardinal]*200));obj_sw(points+4,(int)(z[cardinal]*200));

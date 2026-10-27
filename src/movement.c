@@ -881,7 +881,7 @@ static bool view_height_clear(const LevelState *level, int zone, double y, doubl
 {
     MoveContext ctx;
     move_context_init(&ctx);
-    ctx.thing_height = (int32_t)ceil(radius * 512);
+    ctx.thing_height = (int32_t)ceil(radius * 512)+1;
     ctx.step_up_val = 1;
     ctx.step_down_val = INT32_MAX;
     const uint8_t *room = view_room(level, zone);
@@ -943,6 +943,49 @@ bool view_path_blocked(const LevelState *level, int zone,
         if (next<0) return true;
         zone=next;
         start=end;
+    }
+    return true;
+}
+
+bool view_clip_move(const LevelState *level,int zone,const double start[3],
+                    const double desired[3],double radius,bool slide,double out[3])
+{
+    double origin[3]={start[0],start[1],start[2]};
+    if(!level || !level->data || !isfinite(start[0]+start[1]+start[2]+desired[0]+desired[1]+desired[2]+radius) || radius<=0){
+        memcpy(out,start,3*sizeof(double));return true;
+    }
+    const uint8_t *room=view_room(level,zone);
+    if(!room){memcpy(out,start,3*sizeof(double));return true;}
+    /* A calibration/low ceiling may put the reference at the roof itself.
+     * Pick the nearest valid floor section before sweeping the sphere. */
+    double best=HUGE_VAL;
+    for(int layer=0;layer<(level_zone_has_upper_layer(level,zone)?2:1);++layer){
+        double floor=read_be32(room+ZONE_FLOOR_HEIGHT+layer*8)-radius*256-1;
+        double roof=read_be32(room+ZONE_ROOF_HEIGHT+layer*8)+radius*256+1;
+        if(floor<roof)continue;
+        double y=fmax(roof,fmin(floor,start[1])),distance=fabs(y-start[1]);
+        if(distance<best){best=distance;origin[1]=y;}
+    }
+    memcpy(out,origin,3*sizeof(double));
+    if(view_path_blocked(level,zone,origin[0],origin[1],origin[2],origin[0],origin[1],origin[2],radius))return true;
+    if(!view_path_blocked(level,zone,origin[0],origin[1],origin[2],desired[0],desired[1],desired[2],radius)){
+        memcpy(out,desired,3*sizeof(double));return false;
+    }
+    double low=0,high=1;
+    for(int i=0;i<24;++i){
+        double t=(low+high)*.5;
+        if(view_path_blocked(level,zone,origin[0],origin[1],origin[2],
+            origin[0]+(desired[0]-origin[0])*t,origin[1]+(desired[1]-origin[1])*t,
+            origin[2]+(desired[2]-origin[2])*t,radius))high=t;else low=t;
+    }
+    for(int k=0;k<3;++k)out[k]=origin[k]+(desired[k]-origin[k])*low;
+    if(slide)for(int pass=0;pass<2;++pass)for(int k=0;k<3;++k){
+        double candidate[3]={out[0],out[1],out[2]};low=0;high=1;
+        for(int i=0;i<20;++i){
+            double t=(low+high)*.5;candidate[k]=out[k]+(desired[k]-out[k])*t;
+            if(view_path_blocked(level,zone,origin[0],origin[1],origin[2],candidate[0],candidate[1],candidate[2],radius))high=t;else low=t;
+        }
+        out[k]+=(desired[k]-out[k])*low;
     }
     return true;
 }

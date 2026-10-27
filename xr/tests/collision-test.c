@@ -43,6 +43,14 @@ int main(void) {
     assert(!view_path_blocked(level,0,0,-12288,0,0,-12288,1000,.15)); // clear long LOS
     /* A stationary eye sphere must also detect a nearby wall. */
     assert(view_path_blocked(level,0,30,-12288,0,30,-12288,0,4));
+    double start[3]={0,-12288,0},desired[3]={80,-12288,20},safe[3];
+    assert(view_clip_move(level,0,start,desired,4,true,safe));
+    assert(safe[0]>27.9 && safe[0]<28.01 && fabs(safe[2]-20)<.001);
+    assert(!view_path_blocked(level,0,start[0],start[1],start[2],safe[0],safe[1],safe[2],4));
+    desired[0]=0;desired[1]=-500;desired[2]=0;
+    assert(view_clip_move(level,0,start,desired,4,true,safe));assert(safe[1]<=-1024);
+    desired[1]=-32000;assert(view_clip_move(level,0,start,desired,4,true,safe));assert(safe[1]>=-31744);
+    desired[1]=-12288;assert(!view_clip_move(level,0,start,desired,4,true,safe));
     /* Portal traversal, then collision with the wall in the next room. */
     word(lines+8,1);word(data+64+50,2);word(data+64+52,-1);word(data+64+54,-2);
     body.oldx=0;body.newx=40;body.oldz=body.newz=0;body.objroom=data;
@@ -90,20 +98,27 @@ int main(void) {
     state.explosions[0].start_delay=1;assert(!renderer_xr_explosion_info(&state,0,&effect));
     /* Hundreds of blocked updates and fractional jitter cannot play a step. */
     PlayerState *p=&state.plr1;p->roompt=0;p->zone=0;
+    state.temp_frames=1;
     state.plr1_clumptime=4000;
     for(int i=0;i<500;++i) {
         p->xoff=i%65536;p->oldxoff=0;
         player_clump_after_collision(p,&state);
     }
     assert(sounds==0 && state.plr1_clumptime==4000);
-    p->xoff=2<<16;player_clump_after_collision(p,&state);
+    state.temp_frames=2;p->xoff=2<<16;player_clump_after_collision(p,&state);
     assert(sounds==1); // accepted movement crosses the step threshold
-    state.plr1_clumptime=0;sounds=0;p->xoff=0;p->zoff=64<<16;
+    state.temp_frames=25;state.plr1_clumptime=1;sounds=0;p->xoff=0;p->zoff=64<<16;
     player_clump_after_collision(p,&state);assert(sounds==1); // strafing counts
-    // Cadence is one trigger per 64 accepted units, half the former rate.
-    state.plr1_clumptime=0;sounds=0;p->zoff=p->oldzoff=0;
+    // Fast travel cannot exceed two individual contacts per second.
+    state.temp_frames=1;state.plr1_clumptime=0;sounds=0;p->zoff=p->oldzoff=0;
     for(int i=0;i<128;++i){p->oldxoff=i*4<<16;p->xoff=(i+1)*4<<16;player_clump_after_collision(p,&state);}
-    assert(sounds==8);
+    assert(sounds==5);
+    // Slow walking remains distance-driven; no movement never advances gait.
+    state.plr1_clumptime=0;sounds=0;
+    for(int i=0;i<128;++i){p->oldxoff=i<<16;p->xoff=(i+1)<<16;player_clump_after_collision(p,&state);}
+    assert(sounds==2);
+    for(int i=0;i<200;++i){p->oldxoff=p->xoff;player_clump_after_collision(p,&state);}
+    assert(sounds==2);
     // Calibration restores standing body height while preserving the feet.
     longword(data+6,-32768);p->height=p->s_height=p->p_height=PLAYER_CROUCHED;
     p->s_yoff=p->yoff=-PLAYER_CROUCHED;p->s_tyoff=-PLAYER_CROUCHED;

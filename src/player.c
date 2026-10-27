@@ -9,6 +9,7 @@
 #include "player.h"
 #ifdef AB3D_XR
 #include "native.h"
+#include "combat.h"
 #endif
 #include "game_data.h"
 #include "level.h"
@@ -487,13 +488,20 @@ static void player_advance_clumptime(PlayerState *plr, GameState *state, int16_t
 #ifdef AB3D_XR
 static void player_clump_after_collision(PlayerState *plr, GameState *state)
 {
-    /* Count actual travel, including strafing. Ignore blocked fractional
-     * movement and teleport-sized displacements. One step per two world metres. */
+    /* Actual travel only, including strafing. Original run speeds can exceed
+     * ten metres/second at XR scale: distance alone made the boots chatter.
+     * Retain the two-metre stride and cap gait at two contacts per second;
+     * missed contacts are discarded rather than queued after movement stops. */
     int dx=(plr->xoff>>16)-(plr->oldxoff>>16);
     int dz=(plr->zoff>>16)-(plr->oldzoff>>16);
     int distance=(int)sqrt((double)dx*dx+(double)dz*dz);
-    if(distance>0 && distance<128)
-        player_advance_clumptime(plr,state,(int16_t)(distance*64));
+    if(distance>0 && distance<128){
+        int phase=distance*64;
+        int maximum=state->temp_frames>0?state->temp_frames*4096/25:0;
+        if(phase>maximum)phase=maximum;
+        if(phase>4095)phase=4095;
+        player_advance_clumptime(plr,state,(int16_t)phase);
+    }
 }
 #endif
 
@@ -654,6 +662,32 @@ static int32_t player_instant_y_spread_from_rand(int32_t rand_val)
 
 /* PlayerShoot.s PLR1HITINSTANT/PLR2HITINSTANT behavior:
  * find free slot, spawn pop at target, then apply damage+impact push. */
+#ifdef AB3D_XR
+static bool player_xr_target_hit(const GameState *state,const PlayerState *plr,
+                                  const GameObject *target,double out[3],double *distance)
+{
+    float x,y,z;
+    if(!abxr_shot_direction(state,plr,&x,&y,&z))return false;
+    int cid=OBJ_CID(target),type=target->obj.number;
+    if(cid<0 || cid>=state->level.num_object_points || type<0 || type>20 || !state->level.object_points)return false;
+    const uint8_t *point=state->level.object_points+cid*8;
+    double sx=plr->xoff/65536.,sy=plr->yoff,sz=plr->zoff/65536.;
+    double norm=sqrt(x*x+y*y+z*z);if(norm<.001)return false;
+    double reach=32700./norm,t;
+    if(!abxr_segment_cylinder(sx,sy,sz,sx+x*reach,sy-y*reach*256,sz+z*reach,
+        obj_w(point),obj_w(target->raw+4)*128.,obj_w(point+4),col_box_table[type].width,
+        col_box_table[type].half_height*.5,&t))return false;
+    out[0]=sx+x*reach*t;out[1]=sy-y*reach*256*t;out[2]=sz+z*reach*t;
+    if(state->level.data && state->level.floor_lines && view_path_blocked(&state->level,plr->zone,
+        sx,sy,sz,out[0],out[1],out[2],.1))return false;
+    if(state->level.data && state->level.floor_lines){
+        int zone=level_find_zone_for_point(&state->level,(int)out[0],(int)out[2],plr->zone);
+        if(zone<0 || view_path_blocked(&state->level,zone,out[0],out[1],out[2],
+            obj_w(point),out[1],obj_w(point+4),.1))return false;
+    }
+    *distance=32700.*t;return true;
+}
+#endif
 static void spawn_instant_hit_effect(GameState *state, const PlayerState *plr, int gun_idx,
                                      GameObject *target, int8_t shot_power,
                                      int plr_num, int32_t doubled_dist,
@@ -678,11 +712,19 @@ static void spawn_instant_hit_effect(GameState *state, const PlayerState *plr, i
     if (!impact) return;
 
     obj_sw(impact->raw, saved_cid);
+#ifdef AB3D_XR
+    double xr_point[3],xr_distance;
+    bool xr_hit=player_xr_target_hit(state,plr,target,xr_point,&xr_distance);
+#endif
 
     if (saved_cid >= 0 && state->level.object_points &&
         saved_cid < state->level.num_object_points) {
         int16_t target_cid = OBJ_CID(target);
         uint8_t *dst = state->level.object_points + (uint32_t)(uint16_t)saved_cid * 8u;
+#ifdef AB3D_XR
+        if(xr_hit){obj_sw(dst,(int16_t)lround(xr_point[0]));obj_sw(dst+4,(int16_t)lround(xr_point[2]));}
+        else
+#endif
         if (use_mouse_look_ray_impact && doubled_dist > 0) {
             int16_t origin_x = (int16_t)(plr->xoff >> 16);
             int16_t origin_z = (int16_t)(plr->zoff >> 16);
@@ -697,6 +739,9 @@ static void spawn_instant_hit_effect(GameState *state, const PlayerState *plr, i
 
     {
         int32_t impact_y = ((int32_t)obj_w(target->raw + 4)) << 7;
+#ifdef AB3D_XR
+        if(xr_hit)impact_y=(int32_t)lround(xr_point[1]);else
+#endif
         if (use_mouse_look_ray_impact && doubled_dist > 0) {
             impact_y = plr->yoff + player_shot_ray_y_delta(state,plr,plr_num,doubled_dist);
         }
@@ -4104,6 +4149,11 @@ static void player_shoot_internal(GameState *state, PlayerState *plr,
     int64_t closest_barrel_player_dist_sq = 0;
     bool have_barrel_player_dist = false;
     bool has_target = false;
+#ifdef AB3D_XR
+    float tracked_x,tracked_y,tracked_z;
+    bool tracked_hitscan=gun->fire_bullet && abxr_shot_direction(state,plr,&tracked_x,&tracked_y,&tracked_z);
+    double closest_ray_distance=HUGE_VAL;
+#endif
 
     if (target_scan_enabled && state->level.object_data) {
         for (int i = 0; i < MAX_OBJECTS; i++) {
@@ -4119,6 +4169,19 @@ static void player_shoot_internal(GameState *state, PlayerState *plr,
             /* Keep barrels targetable even when numlives is zero in level data. */
             if (NASTY_LIVES(*obj) == 0 && obj_type != OBJ_NBR_BARREL) continue;
             if (obj_cid < 0 || obj_cid >= MAX_OBJECTS) continue;
+#ifdef AB3D_XR
+            if(tracked_hitscan){
+                // Mouse-look's forward-distance and floor-section gates reject
+                // point-blank/vertical rays. Test the actual 3D barrel instead.
+                double point[3],distance;
+                if(player_xr_target_hit(state,plr,obj,point,&distance) && distance<closest_ray_distance){
+                    closest_ray_distance=distance;closest_idx=i;
+                    closest_dist=(int32_t)fmax(1.,distance*2);
+                    closest_target_ydiff=(int32_t)(point[1]-plr->yoff);
+                }
+                continue;
+            }
+#endif
 
             int32_t rescue_dist = 0;
             int64_t rescue_player_dist_sq = 0;

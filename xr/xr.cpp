@@ -1,6 +1,7 @@
 #include "xr.hpp"
 #include "aim.hpp"
 #include "two_hand.hpp"
+#include "shot_origin.hpp"
 #include "locomotion.hpp"
 #include "render.hpp"
 #include <SDL.h>
@@ -35,7 +36,6 @@ struct XR::Impl {
     XrSystemId system = XR_NULL_SYSTEM_ID;
     bool running = false, hasAnchor = false, quit = false, isFocused = false, visible = true;
     XrEnvironmentBlendMode blend = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
-    float wallFade = 0;
     struct Eye {
         XrSwapchain chain = XR_NULL_HANDLE;
         int width = 0, height = 0;
@@ -548,50 +548,40 @@ bool XR::frame(Renderer &renderer, const Game &game) {
         x.tracking.anchor = x.anchor;
         x.tracking.anchorYaw = x.yaw;
         Game viewGame = game;
-        viewGame.wallFade = 0;
         const auto &player = game.state->plr1;
         float bodyYaw=player.angpos*(2.f*3.14159265f/8192),anchorYaw=x.yaw*(3.14159265f/180);
         float bodyX = player.xoff / 65536.f, bodyZ = player.zoff / 65536.f;
         float bodyY = player.yoff - game.crouchCompensation * 8192;
-        // Use both predicted eye positions, including IPD. Keep the real poses
-        // unchanged; fade the scene before the near plane can cross a wall.
-        for (int i=0;i<2;++i) {
-            float dx = views[i].pose.position.x - x.anchor.x;
-            float dz = views[i].pose.position.z - x.anchor.z;
-            auto offset=engineVector({dx,0,dz},bodyYaw,anchorYaw);
-            float ex = bodyX + offset.x*32;
-            float ez = bodyZ + offset.z*32;
-            float ey = bodyY - (views[i].pose.position.y-x.anchor.y)*8192;
-            auto blocked = [&](float radius) {
-                return view_path_blocked(&game.state->level,player.zone,
-                                         bodyX,bodyY,bodyZ,ex,ey,ez,radius);
-            };
-            // Full blackout at 12.5cm, outside the 5cm near clipping plane.
-            if (blocked(4)) viewGame.wallFade=1;
-            else if (blocked(6)) viewGame.wallFade=std::max(viewGame.wallFade,.65f);
-            else if (blocked(8)) viewGame.wallFade=std::max(viewGame.wallFade,.3f);
-        }
-        x.wallFade = viewGame.wallFade;
+        // Resolve one head-centred sphere for both eyes. Move the virtual rig
+        // away from the solid plane while retaining real eye/hand poses and IPD.
+        auto headDelta=engineVector({x.tracking.headPosition.x-x.anchor.x,0,
+                                     x.tracking.headPosition.z-x.anchor.z},bodyYaw,anchorYaw);
+        double start[3]={bodyX,bodyY,bodyZ};
+        double desired[3]={bodyX+headDelta.x*32,
+            bodyY-(x.tracking.headPosition.y-x.anchor.y)*8192,bodyZ+headDelta.z*32},safe[3];
+        view_clip_move(&game.state->level,player.zone,start,desired,4,true,safe);
+        x.tracking.viewOffset={float((safe[0]-desired[0])/32),float(-(safe[1]-desired[1])/8192),float((safe[2]-desired[2])/32)};
+        auto shift=x.tracking.viewOffset;
+        x.tracking.headPushback=std::sqrt(shift.x*shift.x+shift.y*shift.y+shift.z*shift.z);
+        viewGame.cameraOffset={shift.x,shift.y,shift.z};
         float laserLength=0;
         auto socket=renderer.weapons.muzzlePose(player.gun_selected,player.gun_frame);
         auto muzzle=socket.position;
-        if(x.tracking.valid[1] && (!game.overlay || !game.overlay->menu)){
-            auto ray=weaponRay(x.tracking.weaponPose,muzzle,socket.direction);
-            float dx=ray.origin.x-x.anchor.x,dz=ray.origin.z-x.anchor.z;
-            auto offset=engineVector({dx,0,dz},bodyYaw,anchorYaw);
-            float ox=bodyX+offset.x*32,oz=bodyZ+offset.z*32;
-            float oy=bodyY-(ray.origin.y-x.anchor.y)*8192;
-            if(!view_path_blocked(&game.state->level,player.zone,bodyX,bodyY,bodyZ,ox,oy,oz,1)){
-                int zone=level_find_zone_for_point(&game.state->level,int(ox),int(oz),player.zone);
-                auto direction=engineVector(ray.direction,bodyYaw,anchorYaw);
-                float vx=direction.x*32,vz=direction.z*32,vy=-direction.y*8192;
-                auto blocked=[&](float distance){return view_path_blocked(&game.state->level,zone,ox,oy,oz,
-                    ox+vx*distance,oy+vy*distance,oz+vz*distance,.15);};
-                float low=0,high=1.25f;
-                if(!blocked(high))low=high;
-                else for(int step=0;step<12;++step){float middle=(low+high)*.5f;if(blocked(middle))high=middle;else low=middle;}
-                laserLength=low;
-            }
+        auto safeWeapon=x.tracking.weaponPose;
+        bool weaponReachable=handInReach(safeWeapon,x.tracking.headPosition);
+        if(x.tracking.valid[1] && weaponReachable && (!game.overlay || !game.overlay->menu)){
+            auto shot=resolveShotOrigin(game,safeWeapon,x.anchor,anchorYaw,socket.position,socket.direction,shift);
+            safeWeapon.position.x+=shot.localRetraction.x;
+            safeWeapon.position.y+=shot.localRetraction.y;
+            safeWeapon.position.z+=shot.localRetraction.z;
+            float ox=shot.point.x,oy=shot.point.y,oz=shot.point.z;
+            float vx=shot.direction.x*32,vz=shot.direction.z*32,vy=-shot.direction.y*8192;
+            auto obstructed=[&](float distance){return view_path_blocked(&game.state->level,shot.zone,ox,oy,oz,
+                ox+vx*distance,oy+vy*distance,oz+vz*distance,.15);};
+            float low=0,high=1.25f;
+            if(!obstructed(high))low=high;
+            else for(int step=0;step<12;++step){float middle=(low+high)*.5f;if(obstructed(middle))high=middle;else low=middle;}
+            laserLength=low;
         }
         for (int i = 0; i < 2; i++) {
             auto &e = x.eyes[i];
@@ -625,14 +615,14 @@ bool XR::frame(Renderer &renderer, const Game &game) {
             inversePose(views[i].pose);
             glTranslatef(x.anchor.x, x.anchor.y, x.anchor.z);
             glRotatef(x.yaw, 0, 1, 0);
-            renderer.world(game, true);
+            renderer.world(viewGame, true);
             glLoadIdentity();
             inversePose(views[i].pose);
             // Controller geometry uses its full runtime pose in LOCAL space.
             for (int hand = 0; hand < 2; ++hand)
-                if (x.tracking.valid[hand]) {
+                if (x.tracking.valid[hand] && (!hand || weaponReachable)) {
                     glPushMatrix();
-                    auto pose = hand?x.tracking.weaponPose:x.tracking.hands[hand];
+                    auto pose = hand?safeWeapon:x.tracking.hands[hand];
                     // A rigid inverse is transposed by OpenGL; use a quaternion matrix below.
                     auto q = pose.orientation;
                     GLfloat m[] = {1 - 2 * (q.y * q.y + q.z * q.z),
@@ -683,25 +673,6 @@ bool XR::frame(Renderer &renderer, const Game &game) {
                     }
                     glPopMatrix();
                 }
-            if (viewGame.wallFade>0) {
-                glPushAttrib(GL_ALL_ATTRIB_BITS);
-                glDisable(GL_DEPTH_TEST);
-                glDisable(GL_ALPHA_TEST);
-                glDisable(GL_TEXTURE_2D);
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-                glMatrixMode(GL_PROJECTION);
-                glPushMatrix(); glLoadIdentity();
-                glMatrixMode(GL_MODELVIEW);
-                glLoadIdentity();
-                glColor4f(0,0,0,viewGame.wallFade);
-                glBegin(GL_QUADS);
-                glVertex2f(-1,-1); glVertex2f(1,-1); glVertex2f(1,1); glVertex2f(-1,1);
-                glEnd();
-                glMatrixMode(GL_PROJECTION); glPopMatrix();
-                glMatrixMode(GL_MODELVIEW);
-                glPopAttrib();
-            }
             // Head-locked HUD/menu: retain the real eye-to-head offset so the
             // panel has stable stereo depth rather than duplicated screen text.
             glLoadIdentity();
@@ -767,7 +738,6 @@ bool XR::resetHeight() {
     return true;
 }
 bool XR::focused() const { return p->isFocused; }
-float XR::wallFade() const { return p->wallFade; }
 std::string XR::description() const { return p->runtime; }
 } // namespace tempest
 #else
@@ -783,7 +753,6 @@ void XR::setVisible(bool) {}
 void XR::recenter() {}
 bool XR::resetHeight() { return false; }
 bool XR::focused() const { return false; }
-float XR::wallFade() const { return 0; }
 std::string XR::description() const { return "unavailable"; }
 } // namespace tempest
 #endif

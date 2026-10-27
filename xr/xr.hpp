@@ -15,6 +15,8 @@ struct Tracking {
          nextWeapon = false;
     XrVector2f move{}, turn{};
     XrVector3f anchor{}, headPosition{};
+    XrVector3f viewOffset{}; // head collision correction, engine metres, +Y up
+    float headPushback=0;
     float anchorYaw = 0; // degrees, for the existing world/hand transforms
     float headYawRadians = 0;
 };
@@ -36,7 +38,6 @@ class XR {
     bool resetHeight();
     void setVisible(bool visible);
     bool focused() const;
-    float wallFade() const;
     std::string description() const;
 };
 } // namespace tempest

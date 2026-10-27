@@ -15,6 +15,10 @@ inline XrVector3f rotateVector(XrQuaternionf q,XrVector3f v){
             2*(q.x*q.y+q.w*q.z)*v.x+(1-2*(q.x*q.x+q.z*q.z))*v.y+2*(q.y*q.z-q.w*q.x)*v.z,
             2*(q.x*q.z-q.w*q.y)*v.x+2*(q.y*q.z+q.w*q.x)*v.y+(1-2*(q.x*q.x+q.y*q.y))*v.z};
 }
+inline bool handInReach(XrPosef hand,XrVector3f head){
+    float x=hand.position.x-head.x,y=hand.position.y-head.y,z=hand.position.z-head.z;
+    return std::isfinite(x+y+z) && x*x+y*y+z*z<=2.25f;
+}
 /* Shared muzzle and -Z barrel ray for both shooting and the short laser. */
 inline WeaponRay weaponRay(XrPosef pose,const std::array<float,3> &socket,const std::array<float,3> &direction={0,0,-1}){
     auto offset=rotateVector(pose.orientation,{socket[0],socket[1],socket[2]});

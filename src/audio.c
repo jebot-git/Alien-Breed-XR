@@ -925,6 +925,15 @@ static void audio_queue_sample(int sample_id, int volume)
     Channel *ch = &g_channels[chan];
     ch->sample_data = g_samples[sample_id].data;
     ch->sample_len = g_samples[sample_id].length;
+#ifdef AB3D_XR
+    /* FootClop contains a second distinct contact around 75 ms. The XR gait
+     * schedules individual contacts: retain the first original impact at its
+     * native pitch instead of playing a rapid pair for every scheduled step. */
+    if(sample_id==24){
+        Uint32 one_contact=(Uint32)(g_spec.freq*60/1000)*g_spec.channels*(SDL_AUDIO_BITSIZE(g_spec.format)/8);
+        if(ch->sample_len>one_contact)ch->sample_len=one_contact;
+    }
+#endif
     ch->position = 0;
     ch->volume = volume;
     ch->sample_id = sample_id;

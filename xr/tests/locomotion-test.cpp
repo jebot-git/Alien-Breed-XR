@@ -20,6 +20,10 @@ int main() {
     assert(std::abs(ray.origin.x-.6f)<.0001f && std::abs(ray.direction.x+1)<.0001f);
     hand.orientation={.70710678f,0,0,.70710678f};ray=weaponRay(hand,{0,0,-.4f});
     assert(std::abs(ray.origin.y-2.4f)<.0001f && std::abs(ray.direction.y-1)<.0001f);
+    // Room-scale translation must not look like an arm extending from the
+    // initial calibration point. Reject only distance from the current head.
+    hand.position={4,1.3f,2};assert(handInReach(hand,{4,1.6f,2.4f}));
+    assert(!handInReach(hand,{0,1.6f,0}));
     // Original +Z-forward world. Reflection in the GPU view must agree with
     // movement and hand/eye world queries, including physical and virtual yaw.
     auto world=engineVector({0,0,-1},0,0);

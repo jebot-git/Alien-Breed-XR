@@ -38,7 +38,7 @@ in `amiga/`; upstream documentation is retained at the repository root.
   The current SDL Wayland surface is resolved again before requesting ownership
   because SDL can remap it during graphics initialization.
 - A head-locked stereo pause overlay with Resume, smooth/snap turn selection,
-  Reset Height / Floor, Save, Load and Quit. Smooth turning is the default.
+  Reset Height / Floor, Save, Load, Two-hand Hold and Quit. Smooth turning is the default.
   The menu pauses gameplay without closing the XR session.
   Its HUD shows vitality percentage, current weapon name/ammunition and key-card
   ownership, reusing the original key-card sprites and the upstream port's
@@ -100,8 +100,10 @@ available when not holding the weapon. All five models and their embedded textur
 to GPU buffers. Original gun countdown ticks drive the Fire clip, discrete sprite
 states and pump mechanisms. Models are loaded from executable-local
 `data/weapons/*.glb`, staged by CMake; missing assets are reported as an error.
-Controller shots originate at the named muzzle socket and are blocked when its
-path crosses a wall. The source/editable assets are in `xr/assets/weapons/`.
+Controller reach is measured from the current head, allowing room-scale movement
+away from the initial calibration point. Shots originate at the named muzzle socket. If the physical barrel
+crosses a wall, floor, ceiling or close enemy, its visible model and launch point
+retract to the safe side; the trigger still fires into the obstruction. The source/editable assets are in `xr/assets/weapons/`.
 The weapon projects a short, depth-tested laser (up to 1.25 m) from that same
 socket and direction, clipped against nearby walls and floor/ceiling openings.
 The socket follows the full animated hierarchy, including recoil and the
@@ -109,7 +111,8 @@ double-barrel breech. The five current models have solid inferred side/bottom
 surfaces, recessed bores and original-palette pixel UV atlases, with painted
 hand pixels excluded from weapon materials. Their editable Blender scene,
 depth assumptions and source references are in `xr/assets/weapons/`.
-It is a visual aiming guide, hidden in the pause menu or at a blocked muzzle.
+It is a visual aiming guide, hidden in the pause menu; at contact with masonry
+its visible length can fall to zero.
 Projectile launch follows the full tracked direction; grenade gravity still
 curves the path after launch. Incoming damage shows the original brief red
 hit flash beneath the readable HUD.
@@ -142,16 +145,21 @@ pulse rifle is slot 0 / `pistol.glb`, shotgun 7 / `shotgun.glb`, machine gun
 Sprite quads use the original centre height and class-specific dimensions, so
 ground enemies meet their authored floor while flying enemies retain their
 height. XR footsteps advance from accepted movement after collision, including
-strafing, once per 64 world units (two metres, half the previous cadence); pushing a stationary player against a wall produces no footsteps.
+strafing, once per 64 world units (two metres), capped at two contacts per second.
+Fast original run speeds cannot create rapid boot chatter, and stopped/blocked
+movement cannot queue more steps. FootClop uses its first original impact only:
+the source recording contains a second contact about 75 ms later. Sample pitch
+and playback rate remain unchanged.
 Synthetic camera bob is disabled in XR and analog acceleration matches the
 original engine's sine-table amplitude.
 
-Both predicted eye positions are checked against the collision rooms and live
-door/lift heights. Approaching a wall fades the world in both eyes; at 12.5 cm
-clearance it becomes fully black, before the 5 cm near plane can expose the
-other side. Head tracking and the HUD remain active with a move-back prompt.
-Backing away restores the view. These checks do not activate wall switches,
-produce collision sounds, or displace the physical head pose.
+A 12.5 cm head collider checks the collision rooms and live door/lift heights.
+When tracked head motion enters a solid boundary, the virtual view is pushed
+back and slides along it. Both eyes share the same correction, preserving IPD,
+head orientation and head-relative hand positions. Shots and the laser use the
+corrected mapping too. Pulling the head back restores the uncorrected view;
+there is no blackout or proximity warning. The correction does not move the
+simulated body, recalibrate height, activate switches or produce collision sounds.
 XR body movement uses a swept circular wall collider with sliding, while open
 doors, room transitions, stairs and low ceilings retain the original rules.
 
@@ -174,10 +182,14 @@ water/bump effects, exact original lighting/material accuracy, sky and the
 original title/options menu presentation are not fully ported. Unknown/unavailable sprite
 frames have coloured markers. Floor texture scale and wall UV fidelity need
 further comparison with the original renderer. The original collision/AI still
-uses its authored room/zone representation; physical leaning has no new head or
-hand collision model. Shot origin changes are limited to a tracked controller
+uses its authored room/zone representation; head collision corrects the view
+without moving the body hitbox, and hands have no world-object interaction model. Shot origin changes are limited to a tracked controller
 within 1.5 m; unobstructed muzzles may extend into adjacent open rooms. Combat
-retains the original hit volumes and distance-dependent hitscan accuracy rules.
+retains original weapon damage, hit volumes and distance-dependent hitscan
+accuracy rolls. Tracked instant shots use full 3D ray/cylinder intersections,
+including zero horizontal distance, with read-only wall/portal checks. A short
+trigger tap is retained through the next eligible weapon check; pause, focus
+loss and weapon changes discard pending taps.
 
 There is no general world-object grabbing, rendered hand model, save-format
 migration or new FLTK settings window. Existing desktop settings remain in
@@ -229,6 +241,12 @@ metadata, accepted-distance footstep timing, standing/low-ceiling height resets
 and the five-weapon roster. The GPU fixture also checks
 head obstruction and recovery without restarting the XR session. The latest
 grounding and collision changes still need physical headset verification.
+Additional native runs check a floor-obstructed downward muzzle continuing to
+fire and two one-frame trigger taps producing exactly two shots. `xr-safe-muzzle`
+checks wall/floor/enemy retraction and visible muzzle agreement. Combat tests
+check close/downward and fully vertical hits, bounded impact positions and
+protruding hit volumes behind solid walls. Head collision fixtures check pushback,
+wall sliding, floor/ceiling clearance and recovery, rather than a safety fade.
 
 See [SOURCE_NOTICES.md](SOURCE_NOTICES.md) for provenance.
 
@@ -238,7 +256,7 @@ Controller profile paths follow the [Meta OpenXR binding documentation](https://
 Additional CTest checks cover all five runtime weapons and every firing tick using the
 actual offscreen GPU, with visible-pixel checks and captures under
 `artifacts/weapon-gpu-test/`. Footstep audio tests verify original sample
-durations and normal mixer consumption at 8007 and 48000 Hz. The stereo fixture
+loading, one FootClop contact and normal mixer consumption at 8007 and 48000 Hz. The stereo fixture
 checks model uploads, weapon draw calls in both eyes and weapon switching.
 The original-vector GPU check renders every frame of all ten original polygon
 models with their real materials, checks visible textured pixels and captures

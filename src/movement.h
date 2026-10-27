@@ -78,6 +78,10 @@ void move_object_substepped(MoveContext *ctx, LevelState *level);
 bool view_path_blocked(const LevelState *level, int zone,
                       double x0, double y0, double z0,
                       double x1, double y1, double z1, double radius);
+/* Clip a tracked reach to the last clear point; optional axis sliding for a
+ * head collider. Output uses the same X/Y/Z units as view_path_blocked. */
+bool view_clip_move(const LevelState *level, int zone, const double start[3],
+                    const double desired[3], double radius, bool slide, double out[3]);
 
 /*
  * Collision - Check object-to-object collision at position (newx, newz).

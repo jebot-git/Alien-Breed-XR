@@ -270,7 +270,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrEndFrame(XrSession, const XrFrameEndInfo *info)
                     hash *= 1099511628211ULL;
                 }
                 out << " " << hash;
-                if (frame == 6 || frame == 60 || (frame == 24 && std::getenv("ABXR_TEST_TWO_HAND"))) {
+                if (frame == 6 || frame == 60 || (frame == 24 && (std::getenv("ABXR_TEST_TWO_HAND") || std::getenv("ABXR_TEST_WALL") || std::getenv("ABXR_TEST_MUZZLE")))) {
                     std::ofstream image(std::string(file) + (frame == 6 ? ".frame6" : frame == 24 ? ".frame24" : "") + (eye ? ".right.ppm" : ".left.ppm"),
                                         std::ios::binary);
                     image << "P6\n" << chain->width << " " << chain->height << "\n255\n";
@@ -372,6 +372,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateFloat(XrSession, const XrActionSt
         out->currentState=std::getenv("ABXR_TEST_TWO_HAND") && ((frame>=20 && frame<=45)||(frame>=49 && frame<=67)||(frame>=69 && frame<=75))?1.f:0.f;
         return XR_SUCCESS;
     }
+    if(std::getenv("ABXR_TEST_TAP")){out->currentState=(frame==19 || frame==59)?1.f:0.f;return XR_SUCCESS;}
     out->currentState = !std::getenv("ABXR_TEST_MENU") && (frame > 15 && frame < 75) ? 1.f : 0.f;
     return XR_SUCCESS;
 }
@@ -401,7 +402,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateBoolean(XrSession, const XrAction
         out->currentState =
             (name == "pause" && !right && (frame == 10 || frame == 80)) ||
             (name == "use" && right && (frame == 24 || frame == 28 || frame == 38 || frame == 52 || frame == 66 || frame == 92 || frame==96 || frame==106));
-    } else if(std::getenv("ABXR_TEST_TWO_HAND")){
+    } else if(std::getenv("ABXR_TEST_TWO_HAND") || std::getenv("ABXR_TEST_MUZZLE") || std::getenv("ABXR_TEST_TAP")){
         out->currentState=XR_FALSE; // squeeze must never be interpreted as Use/fire/weapon cycling
     } else {
         out->currentState = (name == "use" && (right ? frame >= 20 && frame <= 28 : frame == 68)) ||
@@ -421,6 +422,9 @@ XRAPI_ATTR XrResult XRAPI_CALL xrLocateSpace(XrSpace space, XrSpace, XrTime, XrS
         if(frame>=24 && frame<=35)out->pose.position.x+=.035f;
         if(frame==36)out->locationFlags=0;
         if(frame==61)out->pose.position.x+=1;
+    }
+    if(std::getenv("ABXR_TEST_MUZZLE") && s->hand==1){
+        out->pose.orientation={-.5f,0,0,.8660254f};out->pose.position.y=.30f;
     }
     return XR_SUCCESS;
 }

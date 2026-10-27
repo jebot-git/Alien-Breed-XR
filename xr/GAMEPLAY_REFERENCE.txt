@@ -47,7 +47,9 @@ Implemented corrections:
   and repeat scale. Type-13 see-through walls alpha-test palette index zero.
 - XR body wall collision uses a swept circle and sliding on solid boundaries
   and closed portals, retaining original open-door, step and room transitions.
-  Eye safety fading remains separate from locomotion and does not move tracking.
+  Head collision now pushes the virtual view away from solid geometry and slides
+  along it, without a safety fade. Both eyes and weapon world queries share the
+  correction; simulated body position and physical poses remain unchanged.
 - Original sprite palette level zero is decoded once, with brightness applied
   on GPU. Emissive projectiles no longer inherit an arbitrary middle-dark palette;
   short palettes work, invalid animation indices use the original first-frame
@@ -65,14 +67,15 @@ Implemented corrections:
   collision radii from reaching through solid boundaries. Impacts use contact Y.
 - A short (maximum 1.25 m) depth-tested laser projects from the named muzzle
   socket. It shares the shot origin/direction and clips against live walls and
-  floor/ceiling openings. It is hidden in the pause menu or at a blocked muzzle.
+  floor/ceiling openings. It is hidden in the pause menu. Obstructed barrels
+  retract with their laser/launch point and continue firing into the obstruction.
   This is a visual guide: it does not magnetize shots or select an aim-assist target.
   Grenades retain their ballistic gravity, so the line shows initial barrel aim.
 
 Validation:
 - All 16 levels load/render on the actual offscreen GPU with original polygon
   objects present. Stereo fixtures check laser draws in both eyes, effects,
-  head-relative movement, smooth/snap turning, height reset, save/load and wall fade.
+  head-relative movement, smooth/snap turning, height reset, save/load and head pushback.
 - A separate GPU check renders every animation frame of all ten original vector
   models, checks visible textured pixels and captures artifacts/vector-gpu-test/.
 - Collision tests cover repeated sliding/retreat, open and closed portals,

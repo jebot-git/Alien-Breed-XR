@@ -47,6 +47,17 @@ int main(void){
  assert(abs(SHOT_XVEL(shots[0]))<2 && abs(SHOT_ZVEL(shots[0])+8*65536)<2);
  assert(abs(SHOT_YVEL(shots[0])+3547)<2);
  use_ray=0;
+ // Hitscan uses the complete tracked ray at close range, including an enemy
+ // directly below the muzzle (zero horizontal forward distance).
+ for(int vertical=0;vertical<2;++vertical){
+  setup(0);use_ray=1;aim(0,1);
+  obj_sw(points+4,vertical?0:20);obj_sw(targets[0].raw+4,-32);
+  direction[0]=0;direction[1]=vertical?-1.f:-.848f;direction[2]=vertical?0:.53f;
+  player1_shoot(&state);
+  assert(fired==1 && targets[0].raw[19]==4 && state.plr1.gun_data[0].ammo==31992);
+  assert(OBJ_ZONE(&shots[0])==0 && obj_w(shots[0].raw+4)>=-96 && obj_w(shots[0].raw+4)<=0);
+ }
+ use_ray=0;
  // Exercise the real projectile handler: crossing the target vertically
  // during a tick must count even when its endpoint is above the hit volume.
  setup(1);aim(0,-1);OBJ_SET_ZONE(&targets[0],-1);player1_shoot(&state);
@@ -68,6 +79,12 @@ int main(void){
  OBJ_SET_ZONE(&targets[0],0);obj_sw(points+4,-200);
  for(int tick=0;tick<20 && !SHOT_STATUS(shots[0]);++tick)object_handle_bullet(&shots[0],&state);
  assert(targets[0].raw[19]==0 && SHOT_STATUS(shots[0]));
+ // Generous hitscan volumes protruding through masonry must not bypass it.
+ setup(0);aim(0,-1);use_ray=1;direction[0]=0;direction[1]=0;direction[2]=-1;
+ state.level.data=room_data;state.level.data_byte_count=sizeof(room_data);state.level.zone_adds=room_adds;
+ state.level.floor_lines=wall;state.level.num_floor_lines=1;state.level.num_zones=state.level.num_zone_slots=1;
+ obj_sw(points+4,-150);player1_shoot(&state);
+ assert(fired==1 && targets[0].raw[19]==0);use_ray=0;
  // A full cosmetic pool must not eat successful damage.
  setup(0);aim(0,-1);obj_sw(points,0);obj_sw(points+4,-200);
  for(int i=0;i<PLAYER_SHOT_SLOT_COUNT;++i)OBJ_SET_ZONE(&shots[i],0);

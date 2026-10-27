@@ -1,6 +1,7 @@
 #include "native.h"
 #include "combat.h"
 #include "aim.hpp"
+#include "shot_origin.hpp"
 #include "domed.hpp"
 #include "game.hpp"
 #include "locomotion.hpp"
@@ -43,6 +44,7 @@ Uint32 firstLogicMs=0,lastShotMs=0;
 Uint32 minimumShotIntervalMs=0;
 int lastShotGun=-1;
 bool useHeld = false, pendingUse = false;
+bool fireHeld=false,pendingFireClick=false;
 int useActions = 0;
 XrVector2f lastMovement{}, firstMovement{};
 int movementSamples = 0;
@@ -54,7 +56,8 @@ float turnFraction = 0;
 Uint64 lastControlTime = 0;
 float physicalTarget = 1.5f, minPhysicalTarget = 1.5f, minEngineHeight = 1.5f;
 int previousGun = -1, weaponChanges = 0;
-int wallBlockedFrames = 0, heightResets=0,twoHandChanges=0;
+int headPushbackFrames=0,muzzleRetractions=0, heightResets=0,twoHandChanges=0;
+float maximumHeadPushback=0;
 float crouchCompensation(const GameState &state) {
     return xr ? crouchViewCompensation(state.plr1.height / 8192.f, physicalTarget) : 0;
 }
@@ -66,7 +69,9 @@ void menuState(GameState &state, bool open) {
     state.plr1.s_xspdval = state.plr1.s_zspdval = 0;
     std::fill(std::begin(state.key_map), std::end(state.key_map), 0);
     state.plr1.fire = state.plr1.p_fire = 0;
+    state.plr1.clicked=state.plr1.p_clicked=0;
     pendingUse = false;
+    pendingFireClick=false;
     pendingWeapons = 0;
     suppressActions = true;
     requireNeutral = true;
@@ -130,6 +135,7 @@ void menuAction(GameState &state) {
 float angle(const GameState &state) { return state.plr1.angpos * 6.283185307f / 8192; }
 void release() {
     useHeld = pendingUse = false;
+    fireHeld=pendingFireClick=false;
     snapHeld = false;
     lastMovement = {};
     previousHeld = nextHeld = selectHeld = navHeld = false;
@@ -340,15 +346,22 @@ extern "C" int abxr_poll(void *data) {
         } else {
             navHeld = false;
             selectHeld = selecting;
+            // XR snapshots can be shorter than a 50Hz simulation tick. Keep
+            // one trigger edge through cooldown; never turn it into autofire.
+            if(!suppressActions && t.fire && !fireHeld)pendingFireClick=true;
+            fireHeld=t.fire;
+            if(!t.valid[1])pendingFireClick=false;
             if (!t.use && !t.fire)
                 suppressActions = false;
             if (std::hypot(t.move.x, t.move.y) < .2f)
                 requireNeutral = false;
             if (previous) {
+                pendingFireClick=false;
                 pendingWeapons = std::max(-8, pendingWeapons - 1);
                 ++previousActions;
             }
             if (next) {
+                pendingFireClick=false;
                 pendingWeapons = std::min(8, pendingWeapons + 1);
                 ++nextActions;
             }
@@ -428,6 +441,7 @@ extern "C" void abxr_level_loaded(void *data) {
     renderer.invalidateLevel();
     pendingWeapons = 0;
     pendingUse = false;
+    pendingFireClick=false;
     requireNeutral = true;
     suppressActions = true;
 }
@@ -485,50 +499,37 @@ extern "C" void abxr_begin_shot(void *data) {
         return;
     auto &s = *static_cast<GameState *>(data);
     const auto t = xr->tracking();
-    heldFireBackup=s.plr1.p_fire;clickedBackup=s.plr1.p_clicked;shotInputSuppressed=true;
+    bool buffered=pendingFireClick;
+    heldFireBackup=s.plr1.p_fire;clickedBackup=(s.plr1.p_clicked || buffered)?-1:0;shotInputSuppressed=true;
     s.plr1.p_fire=0;s.plr1.p_clicked=0;
-    if (!t.valid[1] || (!t.fire && !clickedBackup))
+    if (suppressActions || !t.valid[1] || (!t.fire && !clickedBackup))
         return;
     auto pose = t.weaponPose;
-    float gripX=pose.position.x-t.anchor.x,gripY=pose.position.y-t.anchor.y,gripZ=pose.position.z-t.anchor.z;
-    if(gripX*gripX+gripY*gripY+gripZ*gripZ>2.25f)return;
+    if(!handInReach(pose,t.headPosition)){pendingFireClick=false;return;}
     auto socket=renderer.weapons.muzzlePose(s.plr1.gun_selected,s.plr1.gun_frame);
-    auto ray=weaponRay(pose,socket.position,socket.direction);
-    pose.position=ray.origin;
-    float dx=ray.direction.x,dy=ray.direction.y,dz=ray.direction.z;
-    float x = pose.position.x - t.anchor.x, z = pose.position.z - t.anchor.z,
-          y = pose.position.y - t.anchor.y;
-    auto offset=engineVector({x,y,z},angle(s),t.anchorYaw*3.14159265f/180);
-    float wx = s.plr1.xoff / 65536.f + offset.x * 32,
-          wz = s.plr1.zoff / 65536.f + offset.z * 32;
-    // The longer visible barrel can cross a wall while the grip remains in
-    // the room. Sweep to its muzzle without setting wall-use/touch flags.
-    float bodyY=s.plr1.yoff-crouchCompensation(s)*8192;
-    if(view_path_blocked(&s.level,s.plr1.zone,s.plr1.xoff/65536.f,bodyY,s.plr1.zoff/65536.f,
-                         wx,bodyY-y*8192,wz,1))return;
-    // An unobstructed barrel may extend through an open portal. Use its room
-    // for the shot; restore the body room after spawning/hitscan completes.
-    int muzzleZone=level_find_zone_for_point(&s.level,int(wx),int(wz),s.plr1.zone);
-    if(muzzleZone<0)return;
-    s.plr1.p_fire=heldFireBackup;s.plr1.p_clicked=clickedBackup;shotInputSuppressed=false;
+    auto origin=resolveShotOrigin(sceneGame(s),pose,t.anchor,t.anchorYaw*3.14159265f/180,
+                                  socket.position,socket.direction,t.viewOffset);
+    if(origin.clipped)++muzzleRetractions;
+    s.plr1.p_fire=(heldFireBackup || buffered)?-1:0;s.plr1.p_clicked=clickedBackup;shotInputSuppressed=false;
+    if(s.plr1.time_to_shoot==0)pendingFireClick=false;
     shotBackup = s.plr1;
     aimBackup = s.plr1_p_aim_speed;
     lookBackup = s.cfg_mouse_look;
     s.cfg_mouse_look = true;
     shotOverride = true;
-    shotDirection=engineVector({dx,dy,dz},angle(s),t.anchorYaw*3.14159265f/180);
+    shotDirection=origin.direction;
     float ax=shotDirection.x,az=shotDirection.z;
-    s.plr1.xoff = int32_t(wx * 65536);
-    s.plr1.zoff = int32_t(wz * 65536);
-    s.plr1.yoff -= int32_t((y + crouchCompensation(s)) * 8192);
-    s.plr1.zone=(int16_t)muzzleZone;
+    s.plr1.xoff = int32_t(origin.point.x * 65536);
+    s.plr1.zoff = int32_t(origin.point.z * 65536);
+    s.plr1.yoff = int32_t(origin.point.y);
+    s.plr1.zone=(int16_t)origin.zone;
     auto room=level_get_zone_data_ptr(&s.level,s.plr1.zone);
     if(room){s.plr1.roompt=int32_t(room-s.level.data);s.plr1.stood_in_top=level_zone_has_upper_layer(&s.level,s.plr1.zone)&&s.plr1.yoff<obj_l(room+6);}
     s.plr1.angpos = abxr_engine_shot_yaw(ax,az);
     s.plr1.sinval = sin_lookup(s.plr1.angpos);
     s.plr1.cosval = cos_lookup(s.plr1.angpos);
     s.plr1_p_aim_speed =
-        int16_t(std::clamp(-dy / std::max(.1f, std::hypot(dx, dz)) * 32768.f, -32760.f, 32760.f));
+        int16_t(std::clamp(-shotDirection.y / std::max(.1f, std::hypot(ax, az)) * 32768.f, -32760.f, 32760.f));
     ++shots;
 }
 extern "C" void abxr_end_shot(void *data) {
@@ -548,6 +549,7 @@ extern "C" void abxr_end_shot(void *data) {
     s.plr1.cosval = shotBackup.cosval;
     s.plr1_p_aim_speed = aimBackup;
     s.cfg_mouse_look = lookBackup;
+    s.plr1.p_fire=heldFireBackup;s.plr1.p_clicked=0;
     shotOverride = false;
 }
 extern "C" void abxr_present(void *data) {
@@ -576,7 +578,9 @@ extern "C" void abxr_present(void *data) {
             if (!xr->frame(renderer, sceneGame(state))) {
                 suspend();
             }
-            else if(xr->wallFade()>=1) ++wallBlockedFrames;
+            else if(xr->tracking().headPushback>.0001f){
+                ++headPushbackFrames;maximumHeadPushback=std::max(maximumHeadPushback,xr->tracking().headPushback);
+            }
         }
         renderer.desktop(sceneGame(state), w, h);
         if (previousGun >= 0 && previousGun != state.plr1.gun_selected)
@@ -614,8 +618,10 @@ extern "C" void abxr_present(void *data) {
                                   {"weapon_gpu_triangles", renderer.weapons.triangles},
                                   {"weapon_slots_drawn", renderer.weapons.slotsDrawn},
                                   {"weapon_sprite_frame", renderer.weapons.spriteFrame},
-                                  {"wall_fade", xr ? xr->wallFade() : 0},
-                                  {"wall_blocked_frames", wallBlockedFrames},
+                                  {"head_pushback_frames",headPushbackFrames},
+                                  {"head_pushback_m",xr?xr->tracking().headPushback:0},
+                                  {"maximum_head_pushback_m",maximumHeadPushback},
+                                  {"muzzle_retractions",muzzleRetractions},
                                   {"use_actions", useActions},
                                   {"weapon_previous_actions", previousActions},
                                   {"weapon_next_actions", nextActions},

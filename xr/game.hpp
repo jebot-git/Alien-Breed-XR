@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <string>
 #define _Static_assert static_assert
 extern "C" {
@@ -24,6 +25,6 @@ struct Game {
     GameState *state;
     float crouchCompensation = 0;
     const Overlay *overlay = nullptr;
-    float wallFade = 0;
+    std::array<float,3> cameraOffset{}; // engine axes, metres, +Y up
 };
 } // namespace tempest

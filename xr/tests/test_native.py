@@ -14,7 +14,7 @@ OUT.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     env={**os.environ,'SDL_VIDEODRIVER':'offscreen','SDL_AUDIODRIVER':'dummy','XDG_RUNTIME_DIR':directory}
     env['XDG_STATE_HOME']=directory+'/state'
-    for key in ('WAYLAND_DISPLAY','WAYLAND_SOCKET','DISPLAY','LD_PRELOAD','ABXR_SAVE_DIR','ABXR_TEST_MENU','ABXR_TEST_WALL','ABXR_TEST_TWO_HAND'):env.pop(key,None)
+    for key in ('WAYLAND_DISPLAY','WAYLAND_SOCKET','DISPLAY','LD_PRELOAD','ABXR_SAVE_DIR','ABXR_TEST_MENU','ABXR_TEST_WALL','ABXR_TEST_TWO_HAND','ABXR_TEST_MUZZLE','ABXR_TEST_TAP'):env.pop(key,None)
     # Use isolated, all-original-weapons fixtures without editing the user's INI.
     game=Path(directory)/'game';game.mkdir()
     binary=game/'alien-breed-xr';shutil.copy2(BUILD/'alien-breed-xr',binary)
@@ -49,7 +49,7 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     assert data['weapon_slots_drawn'] & 1 and data['weapon_slots_drawn'] != 1,data
     assert data['selectable_weapon_mask']==0x97 and not data['flamethrower_enabled'],data
     assert data['weapon_name']=='Mark IV Pulse Rifle',data
-    assert data['wall_blocked_frames']==0 and data['wall_fade']==0,data
+    assert data['head_pushback_frames']==0 and data['head_pushback_m']<.0001,data
     assert data['actual_shots_fired']>0 and data['actual_shots_fired']<12,data
     assert data['shot_billboards_rendered']>0,data
     assert data['aim_laser_draws']>100,data
@@ -71,6 +71,21 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     assert support['minimum_shot_interval_ms']>=135,support
     print('PASS two-hand grip, physical aiming, tracking-loss/out-of-reach release and unchanged Use/fire cadence')
     env.pop('ABXR_TEST_TWO_HAND')
+    env['ABXR_TEST_MUZZLE']='1'
+    result=subprocess.run([binary,'--xr','--frames','110','--report',OUT/'muzzle.json'],env=env,capture_output=True,text=True,timeout=35)
+    (OUT/'muzzle.log').write_text(result.stdout+result.stderr)
+    muzzle=json.loads((OUT/'muzzle.json').read_text())
+    assert result.returncode==0 and muzzle['muzzle_retractions']>5 and muzzle['actual_shots_fired']>=4,muzzle
+    assert muzzle['minimum_shot_interval_ms']>=135 and muzzle['weapon_changes']==0,muzzle
+    print('PASS downward floor-obstructed muzzle keeps firing at original cadence')
+    env.pop('ABXR_TEST_MUZZLE')
+    env['ABXR_TEST_TAP']='1'
+    result=subprocess.run([binary,'--xr','--frames','110','--report',OUT/'tap.json'],env=env,capture_output=True,text=True,timeout=35)
+    (OUT/'tap.log').write_text(result.stdout+result.stderr)
+    tap=json.loads((OUT/'tap.json').read_text())
+    assert result.returncode==0 and tap['actual_shots_fired']==2,tap
+    print('PASS two short XR trigger taps survive simulation/weapon tick quantization without autofire')
+    env.pop('ABXR_TEST_TAP')
     env['ABXR_TEST_EYES']=str(eyes)
     env['ABXR_TEST_MENU']='1'
     result=subprocess.run([binary,'--xr','--frames','150','--report',OUT/'menu.json','--capture',OUT/'menu.ppm'],env=env,capture_output=True,text=True,timeout=35)
@@ -91,5 +106,5 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     (OUT/'wall.log').write_text(result.stdout+result.stderr)
     wall=json.loads((OUT/'wall.json').read_text())
     assert result.returncode==0 and wall['xr_entries']==1 and wall['xr_suspends']==0,wall
-    assert wall['wall_blocked_frames']==11 and wall['wall_fade']==0,wall
-    print('PASS tracked head obstruction fades both eyes and recovers without restarting XR')
+    assert wall['head_pushback_frames']==11 and wall['head_pushback_m']<.0001 and wall['maximum_head_pushback_m']>1,wall
+    print('PASS tracked head pushback keeps the view clear and recovers without restarting XR')

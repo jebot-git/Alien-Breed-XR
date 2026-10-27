@@ -158,8 +158,9 @@ void Renderer::world(const Game &game, bool immersive) {
     glPushMatrix();
     glScalef(1,1,-1); // original +Z view depth -> OpenGL -Z
     glRotatef(-p.angpos * 360.f / 8192, 0, 1, 0);
-    glTranslatef(-p.xoff / 65536.f / 32, p.yoff / 8192.f - (immersive ? game.crouchCompensation : 0.f),
-                 -p.zoff / 65536.f / 32);
+    glTranslatef(-p.xoff / 65536.f / 32-game.cameraOffset[0],
+                 p.yoff / 8192.f - (immersive ? game.crouchCompensation : 0.f)-game.cameraOffset[1],
+                 -p.zoff / 65536.f / 32-game.cameraOffset[2]);
     if (cachedLevel != state.current_level) {
         for (auto [key, list] : polygons)
             glDeleteLists(list, 1);

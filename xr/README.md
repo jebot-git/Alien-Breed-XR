@@ -60,6 +60,18 @@ No dependencies were installed system-wide for this attempt.
 ./build-xr/alien-breed-xr --xr --level 1
 ```
 
+For a system installation, configure a Release build with
+`-DCMAKE_INSTALL_PREFIX=/usr/local`, build as the regular user, then stage using
+`(umask 022; DESTDIR=/absolute/stage cmake --install build-xr --component Runtime)`. After
+verifying the staged executable/assets, install with
+`SUDO_ASKPASS=/usr/local/bin/dome-askpass sudo -k -A sh xr/tools/install-system.sh build-xr`.
+The command and launch-menu entry are `alien-breed-xr`. Executable-local assets
+live under `/usr/local/libexec/alien-breed-xr`; the launcher creates each user's
+settings at `$XDG_CONFIG_HOME/alien-breed-xr/ab3d.ini` (default `~/.config/...`).
+`ABXR_CONFIG` can override that INI path. Saves remain in the user's state directory.
+The launch menu also offers explicit Headset/Desktop actions. Installation does
+not start the game or restart the compositor.
+
 Without a mode argument, a validated DomeD XR launch realm requests OpenXR and a
 DomeD desktop launch realm stays on the desktop. Outside DomeD, the default is
 desktop. `--xr` requires a configured OpenXR runtime/headset; if initialization

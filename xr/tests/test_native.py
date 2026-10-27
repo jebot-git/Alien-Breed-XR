@@ -14,7 +14,7 @@ OUT.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     env={**os.environ,'SDL_VIDEODRIVER':'offscreen','SDL_AUDIODRIVER':'dummy','XDG_RUNTIME_DIR':directory}
     env['XDG_STATE_HOME']=directory+'/state'
-    for key in ('WAYLAND_DISPLAY','WAYLAND_SOCKET','DISPLAY','LD_PRELOAD','ABXR_SAVE_DIR','ABXR_TEST_MENU','ABXR_TEST_WALL','ABXR_TEST_TWO_HAND','ABXR_TEST_MUZZLE','ABXR_TEST_TAP'):env.pop(key,None)
+    for key in ('WAYLAND_DISPLAY','WAYLAND_SOCKET','DISPLAY','LD_PRELOAD','ABXR_SAVE_DIR','ABXR_CONFIG','ABXR_TEST_MENU','ABXR_TEST_WALL','ABXR_TEST_TWO_HAND','ABXR_TEST_MUZZLE','ABXR_TEST_TAP'):env.pop(key,None)
     # Use isolated, all-original-weapons fixtures without editing the user's INI.
     game=Path(directory)/'game';game.mkdir()
     binary=game/'alien-breed-xr';shutil.copy2(BUILD/'alien-breed-xr',binary)

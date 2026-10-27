@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Application
+Name=Alien Breed XR
+Comment=Alien Breed 3D with native OpenXR stereo and motion controls
+Exec=alien-breed-xr
+TryExec=alien-breed-xr
+Icon=applications-games
+Terminal=false
+Categories=Game;ActionGame;
+Actions=Headset;Desktop;
+
+[Desktop Action Headset]
+Name=Play in Headset
+Exec=alien-breed-xr --xr
+
+[Desktop Action Desktop]
+Name=Play on Desktop
+Exec=alien-breed-xr --desktop

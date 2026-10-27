@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+abxr_config_home=${XDG_CONFIG_HOME:-"${HOME:?HOME or XDG_CONFIG_HOME is required}/.config"}
+if [ -z "${ABXR_CONFIG:-}" ]; then
+    abxr_config_dir="$abxr_config_home/alien-breed-xr"
+    mkdir -p -- "$abxr_config_dir"
+    chmod 700 -- "$abxr_config_dir"
+    ABXR_CONFIG="$abxr_config_dir/ab3d.ini"
+    if [ ! -e "$ABXR_CONFIG" ]; then
+        (umask 077; set -C; cat '@ABXR_INSTALL_DIR@/ab3d.ini.template' > "$ABXR_CONFIG") || [ -f "$ABXR_CONFIG" ]
+    fi
+    export ABXR_CONFIG
+fi
+exec '@ABXR_INSTALL_DIR@/alien-breed-xr' "$@"

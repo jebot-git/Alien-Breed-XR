@@ -812,6 +812,15 @@ static int try_load_settings_file(GameState *state, const char *path, const char
 
 void settings_load(GameState *state)
 {
+#ifdef AB3D_XR
+    /* System launcher keeps writable settings outside the read-only assets.
+     * Executable-local behavior is retained for unwrapped development builds. */
+    const char *user_ini=getenv("ABXR_CONFIG");
+    if(user_ini && *user_ini && try_load_settings_file(state,user_ini," (user config)")){
+        settings_remember_menu_options_paths(user_ini,user_ini);
+        return;
+    }
+#endif
     char *base = SDL_GetBasePath();
     char default_save_path[SETTINGS_PATH_MAX] = "ab3d.ini";
 

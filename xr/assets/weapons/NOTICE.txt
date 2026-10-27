@@ -1,0 +1,14 @@
+Original Alien Breed 3D I sprites, palette, weapon designs and animation tables:
+Team17 and their original authors. Extracted from the source/data already in
+this repository; original notices and terms remain in effect.
+
+AB3D II modelling references:
+https://github.com/mheyer32/alienbreed3d2/tree/86abb5c5b28cbab874e46b96c94b93b51bff56ec/media/vectobj
+Pistol, plasmagun, rocketlauncher, grenadelauncher and shotgun. Reference data
+and SHA-256 hashes are recorded in reconstruction.json. Hidden source meshes
+in the .blend are reference-only; exported meshes are new reconstructions.
+
+New mesh construction, texture projection, animation conversion and scripts:
+de-xr Alien-Breed-XR development. These derivatives do not relicense the
+original art, designs or reference assets, and add no license grant for them.
+Source availability and successful export do not establish a new license.

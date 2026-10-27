@@ -1,0 +1,155 @@
+{
+  "validator": "2.0.0-dev.3.10",
+  "files": [
+    {
+      "file": "flamethrower.glb",
+      "bytes": 171004,
+      "errors": 0,
+      "warnings": 0,
+      "messages": [
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 96x58.",
+          "severity": 2,
+          "pointer": "/images/0"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 384x74.",
+          "severity": 2,
+          "pointer": "/images/1"
+        }
+      ],
+      "animation_names": [
+        "Fire"
+      ],
+      "images": 2,
+      "mesh_count": 5
+    },
+    {
+      "file": "grenade.glb",
+      "bytes": 148716,
+      "errors": 0,
+      "warnings": 0,
+      "messages": [
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 384x74.",
+          "severity": 2,
+          "pointer": "/images/0"
+        }
+      ],
+      "animation_names": [
+        "Fire"
+      ],
+      "images": 1,
+      "mesh_count": 8
+    },
+    {
+      "file": "pistol.glb",
+      "bytes": 113816,
+      "errors": 0,
+      "warnings": 0,
+      "messages": [
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 96x58.",
+          "severity": 2,
+          "pointer": "/images/0"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 384x74.",
+          "severity": 2,
+          "pointer": "/images/1"
+        }
+      ],
+      "animation_names": [
+        "Fire"
+      ],
+      "images": 2,
+      "mesh_count": 5
+    },
+    {
+      "file": "plasma.glb",
+      "bytes": 186888,
+      "errors": 0,
+      "warnings": 0,
+      "messages": [
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 96x58.",
+          "severity": 2,
+          "pointer": "/images/0"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 96x58.",
+          "severity": 2,
+          "pointer": "/images/1"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 384x74.",
+          "severity": 2,
+          "pointer": "/images/2"
+        }
+      ],
+      "animation_names": [
+        "Fire"
+      ],
+      "images": 3,
+      "mesh_count": 6
+    },
+    {
+      "file": "rocket.glb",
+      "bytes": 146920,
+      "errors": 0,
+      "warnings": 0,
+      "messages": [
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 96x58.",
+          "severity": 2,
+          "pointer": "/images/0"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 384x74.",
+          "severity": 2,
+          "pointer": "/images/1"
+        }
+      ],
+      "animation_names": [
+        "Fire"
+      ],
+      "images": 2,
+      "mesh_count": 5
+    },
+    {
+      "file": "shotgun.glb",
+      "bytes": 178364,
+      "errors": 0,
+      "warnings": 0,
+      "messages": [
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 96x58.",
+          "severity": 2,
+          "pointer": "/images/0"
+        },
+        {
+          "code": "IMAGE_NPOT_DIMENSIONS",
+          "message": "Image has non-power-of-two dimensions: 384x74.",
+          "severity": 2,
+          "pointer": "/images/1"
+        }
+      ],
+      "animation_names": [
+        "Fire"
+      ],
+      "images": 2,
+      "mesh_count": 9
+    }
+  ]
+}

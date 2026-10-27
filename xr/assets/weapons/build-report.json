@@ -1,0 +1,59 @@
+{
+  "blender": "5.4.0 Alpha",
+  "weapons": [
+    {
+      "name": "pistol",
+      "slot": 0,
+      "mesh_objects": 5,
+      "triangles_all_variants": 1716,
+      "visible_triangles_max": 432,
+      "duration_s": 0.06,
+      "reference": "pistol"
+    },
+    {
+      "name": "plasma",
+      "slot": 1,
+      "mesh_objects": 6,
+      "triangles_all_variants": 2904,
+      "visible_triangles_max": 728,
+      "duration_s": 0.1,
+      "reference": "plasmagun"
+    },
+    {
+      "name": "rocket",
+      "slot": 2,
+      "mesh_objects": 5,
+      "triangles_all_variants": 2260,
+      "visible_triangles_max": 568,
+      "duration_s": 0.1,
+      "reference": "rocketlauncher"
+    },
+    {
+      "name": "flamethrower",
+      "slot": 3,
+      "mesh_objects": 5,
+      "triangles_all_variants": 2596,
+      "visible_triangles_max": 652,
+      "duration_s": 0.1,
+      "reference": null
+    },
+    {
+      "name": "grenade",
+      "slot": 4,
+      "mesh_objects": 8,
+      "triangles_all_variants": 2368,
+      "visible_triangles_max": 596,
+      "duration_s": 0.24,
+      "reference": "grenadelauncher"
+    },
+    {
+      "name": "shotgun",
+      "slot": 7,
+      "mesh_objects": 9,
+      "triangles_all_variants": 2708,
+      "visible_triangles_max": 680,
+      "duration_s": 1.26,
+      "reference": "shotgun"
+    }
+  ]
+}

@@ -14,7 +14,7 @@ OUT.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     env={**os.environ,'SDL_VIDEODRIVER':'offscreen','SDL_AUDIODRIVER':'dummy','XDG_RUNTIME_DIR':directory}
     env['XDG_STATE_HOME']=directory+'/state'
-    for key in ('WAYLAND_DISPLAY','WAYLAND_SOCKET','DISPLAY','LD_PRELOAD','ABXR_SAVE_DIR','ABXR_TEST_MENU','ABXR_TEST_WALL'):env.pop(key,None)
+    for key in ('WAYLAND_DISPLAY','WAYLAND_SOCKET','DISPLAY','LD_PRELOAD','ABXR_SAVE_DIR','ABXR_TEST_MENU','ABXR_TEST_WALL','ABXR_TEST_TWO_HAND'):env.pop(key,None)
     # Use isolated, all-original-weapons fixtures without editing the user's INI.
     game=Path(directory)/'game';game.mkdir()
     binary=game/'alien-breed-xr';shutil.copy2(BUILD/'alien-breed-xr',binary)
@@ -60,6 +60,18 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     assert len({left for _,left,_ in hashes})>50
     (OUT/'report.json').write_text(json.dumps({'passed':True,'levels':list(range(1,17)),'stereo_frames':len(hashes),'controller_shot_overrides':data['controller_shots'],'use_actions':data['use_actions'],'movement_first_world_xz':data['movement_first_world_xz'],'distinct_left_views':len({left for _,left,_ in hashes}),'physical_headset_tested':False,'renderer':data['renderer']},indent=2))
     print((OUT/'report.json').read_text())
+    env['ABXR_TEST_TWO_HAND']='1'
+    env.pop('ABXR_TEST_EYES',None)
+    result=subprocess.run([binary,'--xr','--frames','110','--report',OUT/'two-hand.json'],env=env,capture_output=True,text=True,timeout=35)
+    (OUT/'two-hand.log').write_text(result.stdout+result.stderr)
+    support=json.loads((OUT/'two-hand.json').read_text())
+    assert result.returncode==0 and support['two_hand_enabled'] and not support['two_hand_active'],support
+    assert support['two_hand_grabs']==3 and support['two_hand_releases']==3 and support['two_hand_frames']==35,support
+    assert support['use_actions']==0 and support['weapon_changes']==0 and support['actual_shots_fired']>0,support
+    assert support['minimum_shot_interval_ms']>=135,support
+    print('PASS two-hand grip, physical aiming, tracking-loss/out-of-reach release and unchanged Use/fire cadence')
+    env.pop('ABXR_TEST_TWO_HAND')
+    env['ABXR_TEST_EYES']=str(eyes)
     env['ABXR_TEST_MENU']='1'
     result=subprocess.run([binary,'--xr','--frames','150','--report',OUT/'menu.json','--capture',OUT/'menu.ppm'],env=env,capture_output=True,text=True,timeout=35)
     (OUT/'menu.log').write_text(result.stdout+result.stderr)
@@ -67,7 +79,8 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     assert result.returncode==0 and menu['xr_entries']==1 and menu['xr_suspends']==0,menu
     assert menu['menu_opens']==2 and menu['smooth_turn'] and menu['saves']==1 and menu['loads']==1,menu
     assert .5<menu['virtual_yaw_deg']<25,menu
-    assert menu['frames']<100 and menu['menu_selection']==5,menu
+    assert menu['frames']<115 and menu['menu_selection']==6,menu
+    assert menu['two_hand_enabled'] and menu['two_hand_changes']==2,menu
     assert menu['height_resets']==1 and menu['height_calibration_y']>1.85,menu
     assert abs(menu['head_height_offset_m'])<.05 and menu['engine_height_m']>1.4,menu
     assert 'save restored' in result.stdout+result.stderr

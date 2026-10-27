@@ -21,6 +21,7 @@ try:
         objects=[o for o in qa.objects if o not in before]
         meshes=[o for o in objects if o.type=='MESH']
         assert meshes and all(o.data.uv_layers and len(o.data.vertices)>0 for o in meshes)
+        assert sum(o.get('socket')=='support_grip' for o in objects)==1
         variants=[o for o in objects if o.name.startswith('sprite_frame_')]
         assert len(variants)==4
         samples=[]

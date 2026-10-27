@@ -270,8 +270,8 @@ XRAPI_ATTR XrResult XRAPI_CALL xrEndFrame(XrSession, const XrFrameEndInfo *info)
                     hash *= 1099511628211ULL;
                 }
                 out << " " << hash;
-                if (frame == 6 || frame == 60) {
-                    std::ofstream image(std::string(file) + (frame == 6 ? ".frame6" : "") + (eye ? ".right.ppm" : ".left.ppm"),
+                if (frame == 6 || frame == 60 || (frame == 24 && std::getenv("ABXR_TEST_TWO_HAND"))) {
+                    std::ofstream image(std::string(file) + (frame == 6 ? ".frame6" : frame == 24 ? ".frame24" : "") + (eye ? ".right.ppm" : ".left.ppm"),
                                         std::ios::binary);
                     image << "P6\n" << chain->width << " " << chain->height << "\n255\n";
                     for (int y = chain->height - 1; y >= 0; --y)
@@ -329,7 +329,7 @@ XRAPI_ATTR XrResult XRAPI_CALL
 xrSuggestInteractionProfileBindings(XrInstance, const XrInteractionProfileSuggestedBinding *info) {
     if (info->interactionProfile == path("/interaction_profiles/oculus/touch_controller") ||
         info->interactionProfile == path("/interaction_profiles/facebook/touch_controller_pro")) {
-        bool right = false, left = false, previous = false, next = false;
+        bool right = false, left = false, previous = false, next = false, support=false, grip=false;
         for (unsigned i = 0; i < info->countSuggestedBindings; ++i) {
             auto binding = info->suggestedBindings[i];
             if (reinterpret_cast<Action *>(binding.action)->name == "use") {
@@ -340,8 +340,12 @@ xrSuggestInteractionProfileBindings(XrInstance, const XrInteractionProfileSugges
                 previous |= binding.binding == path("/user/hand/left/input/y/click");
             if (reinterpret_cast<Action *>(binding.action)->name == "next_weapon")
                 next |= binding.binding == path("/user/hand/right/input/b/click");
+            if (reinterpret_cast<Action *>(binding.action)->name == "support_hold")
+                support |= binding.binding==path("/user/hand/left/input/squeeze/value");
+            if (reinterpret_cast<Action *>(binding.action)->name == "grip_pose")
+                grip |= binding.binding==path("/user/hand/left/input/grip/pose");
         }
-        if (!right || !left || !previous || !next)
+        if (!right || !left || !previous || !next || !support || !grip)
             return XR_ERROR_VALIDATION_FAILURE;
     }
     return XR_SUCCESS;
@@ -352,7 +356,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrAttachSessionActionSets(XrSession, const XrSess
 XRAPI_ATTR XrResult XRAPI_CALL xrCreateActionSpace(XrSession, const XrActionSpaceCreateInfo *info,
                                                    XrSpace *out) {
     *out =
-        reinterpret_cast<XrSpace>(new Space{"aim", info->subactionPath == path("/user/hand/right") ? 1 : 0});
+        reinterpret_cast<XrSpace>(new Space{reinterpret_cast<Action*>(info->action)->name.c_str(), info->subactionPath == path("/user/hand/right") ? 1 : 0});
     return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrSyncActions(XrSession, const XrActionsSyncInfo *) { return XR_SUCCESS; }
@@ -361,9 +365,13 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStatePose(XrSession, const XrActionSta
     out->isActive = XR_TRUE;
     return XR_SUCCESS;
 }
-XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateFloat(XrSession, const XrActionStateGetInfo *,
+XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateFloat(XrSession, const XrActionStateGetInfo *info,
                                                      XrActionStateFloat *out) {
     out->isActive = XR_TRUE;
+    if(reinterpret_cast<Action*>(info->action)->name=="support_hold"){
+        out->currentState=std::getenv("ABXR_TEST_TWO_HAND") && ((frame>=20 && frame<=45)||(frame>=49 && frame<=67)||(frame>=69 && frame<=75))?1.f:0.f;
+        return XR_SUCCESS;
+    }
     out->currentState = !std::getenv("ABXR_TEST_MENU") && (frame > 15 && frame < 75) ? 1.f : 0.f;
     return XR_SUCCESS;
 }
@@ -373,7 +381,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateVector2f(XrSession, const XrActio
     out->currentState = {0, 0};
     if (std::getenv("ABXR_TEST_MENU")) {
         if (info->subactionPath == path("/user/hand/left") &&
-            (frame == 18 || frame == 32 || frame == 46 || frame == 60 || frame == 86))
+            (frame == 18 || frame == 32 || frame == 46 || frame == 60 || frame == 86 || frame==100))
             out->currentState.y = -1;
         if (info->subactionPath == path("/user/hand/right") && frame >= 70 && frame <= 76)
             out->currentState.x = .7f;
@@ -392,7 +400,9 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateBoolean(XrSession, const XrAction
     if (std::getenv("ABXR_TEST_MENU")) {
         out->currentState =
             (name == "pause" && !right && (frame == 10 || frame == 80)) ||
-            (name == "use" && right && (frame == 24 || frame == 28 || frame == 38 || frame == 52 || frame == 66 || frame == 92));
+            (name == "use" && right && (frame == 24 || frame == 28 || frame == 38 || frame == 52 || frame == 66 || frame == 92 || frame==96 || frame==106));
+    } else if(std::getenv("ABXR_TEST_TWO_HAND")){
+        out->currentState=XR_FALSE; // squeeze must never be interpreted as Use/fire/weapon cycling
     } else {
         out->currentState = (name == "use" && (right ? frame >= 20 && frame <= 28 : frame == 68)) ||
                             (name == "previous_weapon" && !right && frame == 30) ||
@@ -406,6 +416,12 @@ XRAPI_ATTR XrResult XRAPI_CALL xrLocateSpace(XrSpace space, XrSpace, XrTime, XrS
     out->pose = {{0, std::sin(yaw / 2), 0, std::cos(yaw / 2)}, {s->hand ? .2f : -.2f, 1.35f, -.25f}};
     out->locationFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT |
                          XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
+    if(std::getenv("ABXR_TEST_TWO_HAND") && s->hand==0 && !std::strcmp(s->action,"grip_pose")){
+        out->pose.position={.2f-.205f*std::sin(yaw),1.415f,-.25f-.205f*std::cos(yaw)};
+        if(frame>=24 && frame<=35)out->pose.position.x+=.035f;
+        if(frame==36)out->locationFlags=0;
+        if(frame==61)out->pose.position.x+=1;
+    }
     return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrApplyHapticFeedback(XrSession, const XrHapticActionInfo *,

@@ -156,6 +156,11 @@ def reconstruct(item,api):
         handle(-.026);fasteners(.067,.095,.05);muzzle=(0,.824,.121)
     marker=empty('muzzle',root);marker.location=muzzle;marker['socket']='muzzle'
     grip=empty('grip',root);grip['socket']='grip'
+    import json
+    position=json.loads((api['OUT']/'support-grips.json').read_text())[name]
+    support=empty('support_grip',root);support['socket']='support_grip'
+    support['purpose']='Optional physical support hand; orientation only'
+    support.location=(position[0],-position[2],position[1])
     root['depth_sections']=str(sections)
     flashes={state:flash(item,state,root,muzzle) for state in (2,3)}
     body=[o for o in list(root.children) if o.type=='MESH' and o not in flashes.values()]

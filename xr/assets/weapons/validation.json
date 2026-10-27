@@ -28,7 +28,7 @@
     },
     {
       "file": "grenade.glb",
-      "bytes": 308724,
+      "bytes": 308880,
       "errors": 0,
       "warnings": 0,
       "messages": [],
@@ -40,7 +40,7 @@
     },
     {
       "file": "pistol.glb",
-      "bytes": 291956,
+      "bytes": 292112,
       "errors": 0,
       "warnings": 0,
       "messages": [
@@ -59,7 +59,7 @@
     },
     {
       "file": "plasma.glb",
-      "bytes": 375052,
+      "bytes": 375204,
       "errors": 0,
       "warnings": 0,
       "messages": [
@@ -84,7 +84,7 @@
     },
     {
       "file": "rocket.glb",
-      "bytes": 421600,
+      "bytes": 421756,
       "errors": 0,
       "warnings": 0,
       "messages": [
@@ -103,7 +103,7 @@
     },
     {
       "file": "shotgun.glb",
-      "bytes": 339288,
+      "bytes": 339440,
       "errors": 0,
       "warnings": 0,
       "messages": [

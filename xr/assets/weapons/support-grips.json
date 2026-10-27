@@ -1,0 +1,8 @@
+{
+  "description": "Rest foregrip attachment points in glTF metres, relative to the firing-hand weapon root. They affect physical orientation only.",
+  "pistol": [0, 0.065, -0.205],
+  "plasma": [0, 0.062, -0.18],
+  "rocket": [0, -0.059, -0.39],
+  "grenade": [0, 0.055, -0.29],
+  "shotgun": [0, 0.05, -0.31]
+}

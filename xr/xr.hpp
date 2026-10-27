@@ -8,6 +8,9 @@ class Renderer;
 class Game;
 struct Tracking {
     XrPosef hands[2]{};
+    XrPosef grips[2]{},weaponPose{};
+    bool gripValid[2]{},supportHeld=false,supportAvailable=false,twoHandActive=false;
+    unsigned twoHandGrabs=0,twoHandReleases=0,twoHandFrames=0;
     bool headValid = false, valid[2]{}, fire = false, use = false, menu = false, previousWeapon = false,
          nextWeapon = false;
     XrVector2f move{}, turn{};

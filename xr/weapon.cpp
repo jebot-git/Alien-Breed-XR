@@ -49,6 +49,8 @@ struct Model {
     std::vector<Pose> pose;
     std::array<float,3> muzzle{0,0,-.3f};
     int muzzleNode=-1;
+    std::array<float,3> support{};
+    bool hasSupport=false;
     float duration=0;
     int sampledTick=std::numeric_limits<int>::min();
     ~Model() {
@@ -148,6 +150,7 @@ struct Model {
             require(n.matrix.empty()||n.matrix.size()==16,"invalid node matrix");
             if(source.contains("children"))n.children=source.at("children").get<std::vector<int>>();
             if(n.name=="muzzle"){muzzle=n.rest.translation;muzzleNode=int(nodes.size());}
+            if(n.name=="support_grip"){support=n.rest.translation;hasSupport=true;}
             nodes.push_back(n);
         }
         roots=json.at("scenes").at(json.value("scene",0)).at("nodes").get<std::vector<int>>();
@@ -263,6 +266,12 @@ std::array<float,3> WeaponRenderer::muzzle(int slot)const {
 WeaponSocket WeaponRenderer::muzzlePose(int slot,int remainingTicks){
     require(slot>=0&&slot<8&&bool(p->models[slot]),"selected model is not loaded");
     auto &model=*p->models[slot];model.sample(remainingTicks,gun_anims[slot].num_frames);return model.socket();
+}
+std::array<float,3> WeaponRenderer::supportGrip(int slot)const{
+    require(slot>=0&&slot<8&&bool(p->models[slot]),"selected model is not loaded");
+    const auto &model=*p->models[slot];
+    if(model.hasSupport)return model.support;
+    return {0,model.muzzle[1]-.045f,model.muzzle[2]*.55f};
 }
 void WeaponRenderer::draw(int slot,int remainingTicks){
     require(slot>=0&&slot<8&&bool(p->models[slot]),"selected model is not loaded");auto &model=*p->models[slot];

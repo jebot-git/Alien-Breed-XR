@@ -37,6 +37,11 @@ for item in manifest['weapons']:
             assert node.get('scale',[1,1,1])==([1,1,1] if frame==0 else [0,0,0])
     assert sum(n.get('name')=='grip' for n in g['nodes'])==1
     assert sum(n.get('name')=='muzzle' for n in g['nodes'])==1
+    if item['slot'] in (0,1,2,4,7):
+        sockets=[n for n in g['nodes'] if n.get('name')=='support_grip']
+        assert len(sockets)==1
+        expected=json.loads((ROOT/'support-grips.json').read_text())[item['name']]
+        assert all(abs(a-b)<1e-6 for a,b in zip(sockets[0]['translation'],expected))
     print('PASS',item['name'],len(item['sequence']),'engine ticks, STEP appearance, neutral default, embedded textures and sockets')
 surfaces=json.loads((ROOT/'surfaces.json').read_text())
 for weapon in surfaces['weapons']:

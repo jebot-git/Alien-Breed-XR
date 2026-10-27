@@ -154,11 +154,12 @@ void Renderer::finishFrame(const Game &game, int, int, int, int, int) {
         text(game.overlay->message, -.8f, -.74f, .03f);
     if (game.overlay && game.overlay->menu) {
         glColor4f(.005f, .015f, .025f, .94f);
-        quad(0, -.72f, -.48f, 1.44f, 1.10f);
+        quad(0, -.72f, -.57f, 1.44f, 1.19f);
         glColor4f(1, 1, 1, 1);
         text("ALIEN BREED - PAUSED", -.53f, .49f, .055f);
         const char *items[] = {"RESUME", game.overlay->smoothTurn ? "TURN: SMOOTH" : "TURN: SNAP",
-                               "RESET HEIGHT / FLOOR", "SAVE GAME", "LOAD GAME", "QUIT"};
+                               "RESET HEIGHT / FLOOR", "SAVE GAME", "LOAD GAME",
+                               game.overlay->twoHand?"TWO-HAND HOLD: ON":"TWO-HAND HOLD: OFF", "QUIT"};
         for (int i = 0; i < PauseCount; ++i) {
             float y = .32f - i * .115f;
             if (i == game.overlay->selection) {
@@ -169,7 +170,7 @@ void Renderer::finishFrame(const Game &game, int, int, int, int, int) {
             text(i == game.overlay->selection ? std::string("> ") + items[i] : std::string("  ") + items[i],
                  -.54f, y, .055f);
         }
-        text("STICK: SELECT  A / TRIGGER: ACTIVATE", -.58f, -.43f, .03f);
+        text("STICK: SELECT  A / TRIGGER: ACTIVATE", -.58f, -.51f, .03f);
     }
     glPopAttrib();
 }

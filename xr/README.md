@@ -92,11 +92,11 @@ are cycled; button holds do not repeatedly cycle. Short use/weapon button presse
 are latched until the original game logic consumes them. Touch Pro is explicitly
 bound when `XR_FB_touch_controller_pro` is available, with the existing Touch
 profile as fallback. Index uses B on the respective hands for previous/next and
-left-stick click for the menu. Vive retains grip-to-use and its trackpad axes.
+left-stick click for the menu. Vive uses the right grip for Use and retains its trackpad axes.
 The simple-controller profile supports right select to fire, left select to use,
 and Menu; it has no stick locomotion or Y/B weapon buttons. Controller pointers
 use the right aim pose for the selected glTF weapon; the left pointer remains
-available for reference. All five models and their embedded textures upload once
+available when not holding the weapon. All five models and their embedded textures upload once
 to GPU buffers. Original gun countdown ticks drive the Fire clip, discrete sprite
 states and pump mechanisms. Models are loaded from executable-local
 `data/weapons/*.glb`, staged by CMake; missing assets are reported as an error.
@@ -116,6 +116,20 @@ hit flash beneath the readable HUD.
 The loader supports this unskinned GLB asset set (embedded PNGs, TRS/matrix
 nodes, opaque/blended materials, STEP/LINEAR animation), rather than every glTF
 extension. Geometry and textures remain on the GPU during normal playback.
+
+For optional two-hand aiming, hold the **left grip/squeeze near the weapon's
+fore-end** (within 12 cm of its support socket). Touch/Touch Pro, Index and Vive
+support this; the simple-controller profile remains one-handed. A small amber
+ring indicates a nearby grip; green and a brief left-hand vibration confirm the
+hold. Release the left grip to return to one-handed aiming. The pause menu's
+**Two-hand Hold** option enables/disables this feature; it starts enabled.
+The firing hand remains the position anchor and supplies roll, while the physical
+line between the hands controls orientation. The model, laser and shot ray share
+that pose. There is no added smoothing, aim assistance, damage, recoil, spread,
+movement or fire-rate modifier. Tracking loss, excessive separation, switching
+weapons or opening the menu releases the hold and requires releasing the grip
+before grabbing again. The support socket stays in its rest pose so firing
+animation does not pull the weapon's aim.
 
 The XR roster is the original five weapons, cycled in this order: Mark IV Pulse
 Rifle, Double Barrel Shotgun, Machine Gun, Grenade Launcher and Rocket Launcher.
@@ -165,7 +179,7 @@ hand collision model. Shot origin changes are limited to a tracked controller
 within 1.5 m; unobstructed muzzles may extend into adjacent open rooms. Combat
 retains the original hit volumes and distance-dependent hitscan accuracy rules.
 
-There is no hand interaction/grabbing, two-handed weapon model, save-format
+There is no general world-object grabbing, rendered hand model, save-format
 migration or new FLTK settings window. Existing desktop settings remain in
 use; XR game-state saves are kept in the user state directory. The pause
 menu is controller-operated, while returning after compositor background
@@ -189,11 +203,17 @@ then runs a private test-only OpenXR API fixture. It verifies 110 stereo frames,
 different left/right eye images, changing head/view images, head-directed
 analog movement, physical crouch and recovery, previous/next weapon changes,
 short A/X Use presses and controller shot pose overrides. A second scripted
-run navigates the real XR pause overlay, changes turning mode, resets height, saves, loads
+run checks two-hand grip, tracking-loss/out-of-reach release, re-grabbing and
+unchanged Use/fire cadence. Another scripted run navigates the real XR pause
+overlay, changes turning mode, resets height, toggles two-hand holding, saves, loads
 through a level reload and quits while retaining the same XR session. The
 standalone locomotion CTest covers cardinal directions, rotated/recentered head
 poses, analog speed, diagonal limits, pitch/roll and crouch-view compensation. Its readbacks occur in the test fixture only. It does not
 connect to a physical headset or change the installed runtime.
+The `two-hand-aiming` CTest checks physical orientation, the fixed firing-hand
+position, unchanged aligned aim, roll preservation and safe release for menu,
+weapon, option and invalid-tracking changes. Physical comfort and socket placement
+still need headset testing.
 
 The DomeD test starts its own Xvfb, D-Bus session and nested compositor in a
 private runtime directory. It verifies native ownership, focus-loss pause,

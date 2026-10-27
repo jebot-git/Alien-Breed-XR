@@ -17,6 +17,7 @@ class WeaponRenderer {
     void draw(int slot, int remainingTicks);
     std::array<float,3> muzzle(int slot) const;
     WeaponSocket muzzlePose(int slot,int remainingTicks);
+    std::array<float,3> supportGrip(int slot) const;
     unsigned loaded() const;
     unsigned long draws = 0, triangles = 0;
     unsigned slotsDrawn = 0;

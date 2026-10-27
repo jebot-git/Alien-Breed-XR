@@ -61,8 +61,13 @@ Metres, grip origin at weapon root. Blender forward +Y exports to glTF -Z,
 with glTF +Y up. Named grip and muzzle nodes also carry socket extras. Root
 extras record the AB3D I weapon slot and reconstruction status. World/controller
 tracking should drive the grip root; use the muzzle node for barrel effects.
+Each current weapon also has a support_grip marker at its rest fore-end. The
+optional left grip rotates the weapon about the firing-hand root; it does not
+change damage, recoil, spread or firing timing. The support marker is outside
+the Fire animation hierarchy so recoil cannot feed back into physical aiming.
 The XR renderer loads these models into GPU buffers and attaches the selected
-weapon to the right controller aim pose. Engine gun_frame drives the Fire clip;
+weapon to the right controller aim pose, adjusted by the left grip when held.
+Engine gun_frame drives the Fire clip;
 shots use the model muzzle socket. Headset review is still needed for perceived
 size, silhouette and hand alignment.
 
@@ -74,6 +79,8 @@ Files:
 - reconstruction.json: source hashes, exact tick sequences, pose measurements,
   scale assumptions, and TKG reference geometry/hashes.
 - build-report.json: mesh counts, stored and visible triangle counts.
+- support-grips.json: canonical fore-end support sockets in glTF metres; matching
+  editable empties are included in the Blender source scene.
 - validation.json: Khronos glTF Validator 2.0.0-dev.3.10 results; all six files
   have zero errors and warnings. Informational entries describe marker nodes
   and original non-power-of-two sprite texture dimensions.
@@ -91,6 +98,9 @@ a duplicate reconstruction scene causes an error to protect hand edits.
 The TKG directory is optional, and supplies reference geometry only. The builder
 imports weapon_geometry.py for the current five solid reconstructions. The old
 flamethrower GLB remains an archived prototype and is not rebuilt or staged.
+To update only support sockets in existing GLBs without re-exporting geometry or
+animation, run python3 xr/tools/set_weapon_support_grips.py. Update the matching
+Blender empties too when changing these authored points.
 
 Check exported timing and portability:
 python3 xr/tools/check_weapon_assets.py

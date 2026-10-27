@@ -24,6 +24,7 @@ int main(int argc,char **argv){
             glMatrixMode(GL_MODELVIEW);glLoadIdentity();glTranslatef(0,-.04,-.8);glRotatef(-55,0,1,0);glRotatef(18,1,0,0);
             weapons.draw(slot,remaining);assert(weapons.triangles>100 && weapons.triangles<2500);
             auto muzzle=weapons.muzzle(slot);assert(muzzle[2]<-.25f && muzzle[2]>-1 && std::abs(muzzle[0])<.01f);
+            auto support=weapons.supportGrip(slot);assert(support[2]<-.1f && support[2]>muzzle[2] && std::abs(support[0])<.01f);
             auto socket=weapons.muzzlePose(slot,remaining);
             float length=0;for(float value:socket.direction)length+=value*value;
             assert(std::abs(length-1)<.0001f);

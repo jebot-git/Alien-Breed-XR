@@ -1,5 +1,6 @@
 #include "xr.hpp"
 #include "aim.hpp"
+#include "two_hand.hpp"
 #include "locomotion.hpp"
 #include "render.hpp"
 #include <SDL.h>
@@ -50,13 +51,16 @@ struct XR::Impl {
     std::string runtime;
     uint64_t frames = 0, stereoFrames = 0;
     Tracking tracking;
+    TwoHandHold support;
     bool touchPro = false;
     XrActionSet actions = XR_NULL_HANDLE;
     XrAction pose = XR_NULL_HANDLE, trigger = XR_NULL_HANDLE, stick = XR_NULL_HANDLE,
              operate = XR_NULL_HANDLE, menu = XR_NULL_HANDLE, previous = XR_NULL_HANDLE,
              next = XR_NULL_HANDLE, select = XR_NULL_HANDLE, haptic = XR_NULL_HANDLE;
+    XrAction gripPose=XR_NULL_HANDLE,supportHold=XR_NULL_HANDLE,supportClick=XR_NULL_HANDLE;
     XrPath handPaths[2]{};
     XrSpace handSpaces[2]{};
+    XrSpace gripSpaces[2]{};
     ~Impl() {
         if (instance)
             std::cerr << "OpenXR frames=" << frames << " stereo_frames=" << stereoFrames << '\n';
@@ -71,6 +75,8 @@ struct XR::Impl {
         for (auto hand : handSpaces)
             if (hand)
                 xrDestroySpace(hand);
+        for (auto hand : gripSpaces)
+            if(hand)xrDestroySpace(hand);
         if (space)
             xrDestroySpace(space);
 
@@ -259,6 +265,9 @@ void XR::initializeActions() {
         XR_CHECK(xrCreateAction(x.actions, &info, &out));
     };
     action(x.pose, "aim_pose", XR_ACTION_TYPE_POSE_INPUT);
+    action(x.gripPose,"grip_pose",XR_ACTION_TYPE_POSE_INPUT);
+    action(x.supportHold,"support_hold",XR_ACTION_TYPE_FLOAT_INPUT);
+    action(x.supportClick,"support_click",XR_ACTION_TYPE_BOOLEAN_INPUT);
     action(x.trigger, "trigger", XR_ACTION_TYPE_FLOAT_INPUT);
     action(x.stick, "move_turn", XR_ACTION_TYPE_VECTOR2F_INPUT);
     action(x.operate, "use", XR_ACTION_TYPE_BOOLEAN_INPUT);
@@ -279,6 +288,7 @@ void XR::initializeActions() {
         for (int h = 0; h < 2; ++h) {
             std::string hand = h ? "/user/hand/right" : "/user/hand/left";
             bind(x.pose, hand + "/input/aim/pose");
+            bind(x.gripPose,hand+"/input/grip/pose");
             bind(x.haptic, hand + "/output/haptic");
             if (simple)
                 bind(x.select, hand + "/input/select/click");
@@ -286,11 +296,12 @@ void XR::initializeActions() {
                 bind(x.trigger, hand + "/input/trigger/value");
                 bind(x.stick, hand + (vive ? "/input/trackpad" : "/input/thumbstick"));
             }
-            if (!simple)
+            if (!simple && (!vive || h))
                 bind(x.operate, hand + (vive ? "/input/squeeze/click"
                                         : h  ? "/input/a/click"
                                              : "/input/x/click"));
         }
+        if(!simple)bind(vive?x.supportClick:x.supportHold,"/user/hand/left/input/squeeze/"+std::string(vive?"click":"value"));
         bind(x.menu, "/user/hand/left/input/menu/click");
         if (!simple && !vive) {
             bind(x.previous, "/user/hand/left/input/y/click");
@@ -302,11 +313,13 @@ void XR::initializeActions() {
             for (int h = 0; h < 2; ++h) {
                 std::string hand = h ? "/user/hand/right" : "/user/hand/left";
                 bind(x.pose, hand + "/input/aim/pose");
+                bind(x.gripPose,hand+"/input/grip/pose");
                 bind(x.haptic, hand + "/output/haptic");
                 bind(x.trigger, hand + "/input/trigger/value");
                 bind(x.stick, hand + "/input/thumbstick");
                 bind(x.operate, hand + "/input/a/click");
             }
+            bind(x.supportHold,"/user/hand/left/input/squeeze/value");
             bind(x.menu, "/user/hand/left/input/thumbstick/click");
             bind(x.previous, "/user/hand/left/input/b/click");
             bind(x.next, "/user/hand/right/input/b/click");
@@ -329,16 +342,22 @@ void XR::initializeActions() {
         info.subactionPath = x.handPaths[h];
         info.poseInActionSpace.orientation.w = 1;
         XR_CHECK(xrCreateActionSpace(x.session, &info, &x.handSpaces[h]));
+        info.action=x.gripPose;
+        XR_CHECK(xrCreateActionSpace(x.session,&info,&x.gripSpaces[h]));
     }
 }
 void XR::sampleActions(XrTime time) {
     auto &x = *p;
     auto &t = x.tracking;
     bool wasFire = t.fire;
+    bool wasSupport=t.supportHeld;
     t.fire = t.use = t.menu = t.previousWeapon = t.nextWeapon = false;
+    t.supportHeld=false;
+    t.supportAvailable=false;
     t.move = {};
     t.turn = {};
     t.valid[0] = t.valid[1] = false;
+    t.gripValid[0]=t.gripValid[1]=false;
     XrActiveActionSet active{x.actions, XR_NULL_PATH};
     XrActionsSyncInfo sync{XR_TYPE_ACTIONS_SYNC_INFO};
     sync.countActiveActionSets = 1;
@@ -357,6 +376,14 @@ void XR::sampleActions(XrTime time) {
         auto required = XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
         t.valid[h] = pose.isActive && (location.locationFlags & required) == required;
         t.hands[h] = location.pose;
+        get.action=x.gripPose;
+        XrActionStatePose grip{XR_TYPE_ACTION_STATE_POSE};
+        XR_CHECK(xrGetActionStatePose(x.session,&get,&grip));
+        XrSpaceLocation gripLocation{XR_TYPE_SPACE_LOCATION};
+        XR_CHECK(xrLocateSpace(x.gripSpaces[h],x.space,time,&gripLocation));
+        t.gripValid[h]=grip.isActive && (gripLocation.locationFlags&required)==required &&
+            (gripLocation.locationFlags&XR_SPACE_LOCATION_POSITION_TRACKED_BIT);
+        t.grips[h]=gripLocation.pose;
         get.action = x.stick;
         XrActionStateVector2f stick{XR_TYPE_ACTION_STATE_VECTOR2F};
         XR_CHECK(xrGetActionStateVector2f(x.session, &get, &stick));
@@ -381,6 +408,16 @@ void XR::sampleActions(XrTime time) {
         t.menu = t.menu || boolean(x.menu);
         t.previousWeapon = t.previousWeapon || boolean(x.previous);
         t.nextWeapon = t.nextWeapon || boolean(x.next);
+        if(!h){
+            get.action=x.supportClick;
+            XrActionStateBoolean click{XR_TYPE_ACTION_STATE_BOOLEAN};
+            XR_CHECK(xrGetActionStateBoolean(x.session,&get,&click));
+            get.action=x.supportHold;
+            XrActionStateFloat squeeze{XR_TYPE_ACTION_STATE_FLOAT};
+            XR_CHECK(xrGetActionStateFloat(x.session,&get,&squeeze));
+            t.supportAvailable=click.isActive || squeeze.isActive;
+            t.supportHeld=(click.isActive && click.currentState) || (squeeze.isActive && squeeze.currentState>(wasSupport?.35f:.65f));
+        }
         get.action = x.trigger;
         XrActionStateFloat trigger{XR_TYPE_ACTION_STATE_FLOAT};
         XR_CHECK(xrGetActionStateFloat(x.session, &get, &trigger));
@@ -476,6 +513,20 @@ bool XR::frame(Renderer &renderer, const Game &game) {
                   (vs.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT);
     x.tracking.headValid = render;
     sampleActions(fs.predictedDisplayTime);
+    auto supportGrip=renderer.weapons.supportGrip(game.state->plr1.gun_selected);
+    bool enabled=(!game.overlay || game.overlay->twoHand) && x.tracking.supportAvailable;
+    bool blocked=!render || !x.isFocused || !x.visible || (game.overlay && game.overlay->menu);
+    bool wasHeld=x.support.active;
+    x.tracking.weaponPose=x.support.update(x.tracking.hands[1],x.tracking.valid[1],x.tracking.grips[0].position,
+        x.tracking.gripValid[0],x.tracking.supportHeld,enabled,blocked,game.state->plr1.gun_selected,supportGrip);
+    x.tracking.twoHandActive=x.support.active;
+    x.tracking.twoHandGrabs=x.support.grabs;x.tracking.twoHandReleases=x.support.releases;x.tracking.twoHandFrames=x.support.frames;
+    if(x.support.active && !wasHeld){
+        XrHapticActionInfo action{XR_TYPE_HAPTIC_ACTION_INFO};action.action=x.haptic;action.subactionPath=x.handPaths[0];
+        XrHapticVibration vibration{XR_TYPE_HAPTIC_VIBRATION};vibration.duration=20000000;
+        vibration.amplitude=.18f;vibration.frequency=XR_FREQUENCY_UNSPECIFIED;
+        xrApplyHapticFeedback(x.session,&action,reinterpret_cast<const XrHapticBaseHeader*>(&vibration));
+    }
     if (render) {
 
         if (!x.hasAnchor) {
@@ -525,7 +576,7 @@ bool XR::frame(Renderer &renderer, const Game &game) {
         auto socket=renderer.weapons.muzzlePose(player.gun_selected,player.gun_frame);
         auto muzzle=socket.position;
         if(x.tracking.valid[1] && (!game.overlay || !game.overlay->menu)){
-            auto ray=weaponRay(x.tracking.hands[1],muzzle,socket.direction);
+            auto ray=weaponRay(x.tracking.weaponPose,muzzle,socket.direction);
             float dx=ray.origin.x-x.anchor.x,dz=ray.origin.z-x.anchor.z;
             auto offset=engineVector({dx,0,dz},bodyYaw,anchorYaw);
             float ox=bodyX+offset.x*32,oz=bodyZ+offset.z*32;
@@ -581,7 +632,7 @@ bool XR::frame(Renderer &renderer, const Game &game) {
             for (int hand = 0; hand < 2; ++hand)
                 if (x.tracking.valid[hand]) {
                     glPushMatrix();
-                    auto pose = x.tracking.hands[hand];
+                    auto pose = hand?x.tracking.weaponPose:x.tracking.hands[hand];
                     // A rigid inverse is transposed by OpenGL; use a quaternion matrix below.
                     auto q = pose.orientation;
                     GLfloat m[] = {1 - 2 * (q.y * q.y + q.z * q.z),
@@ -604,6 +655,14 @@ bool XR::frame(Renderer &renderer, const Game &game) {
                     glMultMatrixf(m);
                     if(hand==1) {
                         renderer.weapons.draw(game.state->plr1.gun_selected,game.state->plr1.gun_frame);
+                        if(enabled && !blocked && (x.support.near || x.support.active)){
+                            glPushAttrib(GL_ALL_ATTRIB_BITS);glDisable(GL_TEXTURE_2D);glDisable(GL_LIGHTING);
+                            glColor3f(x.support.active?.2f:.9f,x.support.active?.9f:.6f,.25f);
+                            glBegin(GL_LINE_LOOP);
+                            for(int k=0;k<24;++k){float a=k*6.2831853f/24;
+                                glVertex3f(supportGrip[0]+.022f*std::cos(a),supportGrip[1]+.022f*std::sin(a),supportGrip[2]);}
+                            glEnd();glPopAttrib();
+                        }
                         if(laserLength>.01f){
                             glPushAttrib(GL_ALL_ATTRIB_BITS);
                             glDisable(GL_TEXTURE_2D);glDisable(GL_LIGHTING);glDisable(GL_ALPHA_TEST);
@@ -614,7 +673,7 @@ bool XR::frame(Renderer &renderer, const Game &game) {
                             glVertex3f(muzzle[0]+socket.direction[0]*laserLength,muzzle[1]+socket.direction[1]*laserLength,muzzle[2]+socket.direction[2]*laserLength);
                             glEnd();glPopAttrib();++renderer.laserDraws;
                         }
-                    } else {
+                    } else if(!x.support.active) {
                     glDisable(GL_TEXTURE_2D);
                     glColor3f(hand ? .9f : .2f, hand ? .5f : .8f, .3f);
                     glBegin(GL_LINES);

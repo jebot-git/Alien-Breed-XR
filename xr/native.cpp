@@ -54,7 +54,7 @@ float turnFraction = 0;
 Uint64 lastControlTime = 0;
 float physicalTarget = 1.5f, minPhysicalTarget = 1.5f, minEngineHeight = 1.5f;
 int previousGun = -1, weaponChanges = 0;
-int wallBlockedFrames = 0, heightResets=0;
+int wallBlockedFrames = 0, heightResets=0,twoHandChanges=0;
 float crouchCompensation(const GameState &state) {
     return xr ? crouchViewCompensation(state.plr1.height / 8192.f, physicalTarget) : 0;
 }
@@ -116,6 +116,11 @@ void menuAction(GameState &state) {
         }
         break;
     }
+    case PauseTwoHand:
+        overlay.twoHand=!overlay.twoHand;
+        ++twoHandChanges;
+        overlay.message=overlay.twoHand?"LEFT GRIP NEAR FORE-END TO HOLD":"TWO-HAND HOLD DISABLED";
+        break;
     case PauseQuit:
         quitting = true;
         state.running = false;
@@ -484,7 +489,7 @@ extern "C" void abxr_begin_shot(void *data) {
     s.plr1.p_fire=0;s.plr1.p_clicked=0;
     if (!t.valid[1] || (!t.fire && !clickedBackup))
         return;
-    auto pose = t.hands[1];
+    auto pose = t.weaponPose;
     float gripX=pose.position.x-t.anchor.x,gripY=pose.position.y-t.anchor.y,gripZ=pose.position.z-t.anchor.z;
     if(gripX*gripX+gripY*gripY+gripZ*gripZ>2.25f)return;
     auto socket=renderer.weapons.muzzlePose(s.plr1.gun_selected,s.plr1.gun_frame);
@@ -622,6 +627,12 @@ extern "C" void abxr_present(void *data) {
                                   {"menu_open", overlay.menu},
                                   {"menu_selection", overlay.selection},
                                   {"smooth_turn", overlay.smoothTurn},
+                                  {"two_hand_enabled",overlay.twoHand},
+                                  {"two_hand_changes",twoHandChanges},
+                                  {"two_hand_active",xr?xr->tracking().twoHandActive:false},
+                                  {"two_hand_grabs",xr?xr->tracking().twoHandGrabs:0},
+                                  {"two_hand_releases",xr?xr->tracking().twoHandReleases:0},
+                                  {"two_hand_frames",xr?xr->tracking().twoHandFrames:0},
                                   {"menu_opens", menuOpens},
                                   {"height_resets", heightResets},
                                   {"height_calibration_y", xr?xr->tracking().anchor.y:0},

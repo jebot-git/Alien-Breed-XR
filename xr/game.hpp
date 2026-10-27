@@ -13,9 +13,10 @@ extern "C" {
 #include "renderer.h"
 }
 namespace tempest {
-enum PauseItem { PauseResume, PauseTurning, PauseHeight, PauseSave, PauseLoad, PauseQuit, PauseCount };
+enum PauseItem { PauseResume, PauseTurning, PauseHeight, PauseSave, PauseLoad, PauseTwoHand, PauseQuit, PauseCount };
 struct Overlay {
     bool menu = false, smoothTurn = true;
+    bool twoHand=true;
     int selection = 0;
     std::string message;
 };

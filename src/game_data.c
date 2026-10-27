@@ -791,7 +791,8 @@ const EnemyParams enemy_params[] = {
         .death_frames   = {18,18,18,18,18,18,18,18,18,18, 19,19,19,19,19,19,19,19,19,19,
                            20,20,20,20,20,20, -1},
     },
-    /* [4] Flame Marine (FlameMarine.s) - screamsound #0; death: #14@400 if damage>1 then #0@200 if anim */
+    /* [4] Shotgun soldier (legacy FlameMarine.s name). Player-1 attack is
+     * five instant-hit pellets; use it for both players. */
     {
         .thing_height   = 128 * 128,
         .step_up        = 20 * 256,
@@ -802,11 +803,11 @@ const EnemyParams enemy_params[] = {
         .melee_damage   = 0,
         .melee_cooldown = 0,
         .melee_range    = 80,
-        .shot_type      = 3,        /* flame projectile */
-        .shot_power     = 7,
-        .shot_speed     = 8,
-        .shot_shift     = 2,
-        .shot_cooldown  = 25,
+        .shot_type      = -1,       /* instant hit */
+        .shot_power     = 2,        /* per pellet */
+        .shot_speed     = 0,
+        .shot_shift     = 0,
+        .shot_cooldown  = 200,      /* plus rand & 255, FlameMarineAttack */
         .damage_shift   = 0,
         .min_damage_after_shift = 0,
         .explode_threshold = 40,
@@ -819,7 +820,7 @@ const EnemyParams enemy_params[] = {
         .periodic_vocal2 = 18,
         .periodic_vol_idle = 100,
         .periodic_vol_attack = 800,
-        .attack_sound   = 1,
+        .attack_sound   = 21,       /* ShotGunName */
         .damage_audio_class = ENEMY_DMG_AUDIO_UNUSED,
         .gib_splat_noisevol = 0,
         .death_frames   = {16,16,16,16,16,16,16,16,16,16, 17,17,17,17,17,17,17,17,17,17,

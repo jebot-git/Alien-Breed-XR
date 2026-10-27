@@ -56,6 +56,7 @@ GAME / UI
 COMBAT / HUD
 - Normal mutant rifles use original instant-hit attacks by default. Set
   marine_hitscan_projectiles=1 in ab3d.ini to enable the optional orange shots.
+- Shotgun soldiers fire five instant-hit pellets with the shotgun sound.
 - Taking damage flashes the view red; repeated hits refresh the pulse.
 - Collected keys are opaque and underlined; missing keys are faint.
 - Compact translucent vertical health (left) and ammo (right) bars replace the

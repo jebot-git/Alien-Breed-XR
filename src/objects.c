@@ -3451,13 +3451,12 @@ void object_handle_marine(GameObject *obj, GameState *state)
                 OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, 50 + (int16_t)(rand() & 0x1F));
                 if (params->attack_sound >= 0) object_play_noise(obj, state, params->attack_sound, 100);
                 enemy_fire_at_player(obj, state, target_player, 6, 7, 32, 4);
-            } else if (type == OBJ_NBR_FLAME_MARINE) {
-                fourth_timer = 25;
-                if (params->attack_sound >= 0) object_play_noise(obj, state, params->attack_sound, 100);
-                enemy_fire_at_player(obj, state, target_player, 3, 7, 8, 2);
             } else {
+                /* FlameMarine.s FlameMarineAttack (player 1): shotgun despite
+                 * the legacy name. Use this attack for either target; the
+                 * source's player-2 branch contains a conflicting flamer. */
                 OBJ_SET_TD_W(obj, ENEMY_THIRD_TIMER_OFF, 200 + (int16_t)(rand() & 0xFF));
-                if (params->attack_sound >= 0) object_play_noise(obj, state, params->attack_sound, 100);
+                if (params->attack_sound >= 0) object_play_noise(obj, state, params->attack_sound, 200);
                 marine_hitscan_burst(obj, state, target_player, 5, 2);
             }
             OBJ_SET_TD_W(obj, ENEMY_FOURTH_TIMER_OFF, fourth_timer);

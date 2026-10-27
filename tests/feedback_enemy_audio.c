@@ -12,9 +12,70 @@ void audio_play_sample(int sample, int volume)
 #undef printf
 GameState g_state;
 
+static void check_shotgun_soldier(void)
+{
+    /* FlameMarineAttackPLR1: timer <20, sample 21 at volume 200,
+     * five pellets of damage 2, then ThirdTimer=200+(rand&255).
+     * Apply that contract to both targets, independent of the rifle option. */
+    static GameState state;
+    static GameObject objects[3], shots[NASTY_SHOT_SLOT_COUNT];
+    static uint8_t points[8];
+    int cases=0;
+    for(int player=1;player<=2;player++) {
+        for(int option=0;option<=1;option++) {
+            for(int far=0;far<=1;far++) {
+                for(int ticks=1;ticks<=4;ticks+=3) {
+                    memset(&state,0,sizeof(state));
+                    memset(objects,0,sizeof(objects));
+                    memset(shots,0,sizeof(shots));
+                    for(int i=0;i<NASTY_SHOT_SLOT_COUNT;i++)
+                        OBJ_SET_ZONE(&shots[i],-1);
+                    state.level.object_data=(uint8_t*)objects;
+                    state.level.object_points=points;
+                    state.level.num_object_points=1;
+                    state.level.plr1_obj=(uint8_t*)&objects[1];
+                    state.level.plr2_obj=(uint8_t*)&objects[2];
+                    state.level.nasty_shot_data=(uint8_t*)shots;
+                    state.nasty=1;
+                    state.temp_frames=ticks;
+                    state.cfg_marine_hitscan_projectiles=option;
+                    state.plr1.p_xoff=state.plr2.p_xoff=far?4000:0;
+                    GameObject *obj=&objects[0];
+                    OBJ_SET_CID(obj,0); OBJ_SET_ZONE(obj,0);
+                    obj->obj.number=OBJ_NBR_FLAME_MARINE;
+                    obj->obj.can_see=1<<(player-1);
+                    NASTY_LIVES(*obj)=100;
+                    OBJ_SET_TD_W(obj,ENEMY_SEC_TIMER_OFF,32767);
+                    OBJ_SET_TD_W(obj,ENEMY_FOURTH_TIMER_OFF,20+ticks);
+                    int before=played_count;
+                    object_handle_marine(obj,&state);
+                    assert(played_count==before); /* At 20: still winding up. */
+                    assert(NASTY_DAMAGE(objects[1])==0 && NASTY_DAMAGE(objects[2])==0);
+                    srand(1234);
+                    object_handle_marine(obj,&state);
+                    assert(played_count==before+1 && played_sample==21);
+                    assert(played_volume==audio_distance_volume(200,far?4000:0,0));
+                    assert(NASTY_DAMAGE(objects[player])==(far?0:10));
+                    assert(NASTY_DAMAGE(objects[3-player])==0);
+                    int cooldown=OBJ_TD_W(obj,ENEMY_THIRD_TIMER_OFF);
+                    assert(cooldown>=200 && cooldown<=455);
+                    object_handle_marine(obj,&state);
+                    assert(played_count==before+1); /* No repeated flame burst. */
+                    assert(OBJ_TD_W(obj,ENEMY_THIRD_TIMER_OFF)==cooldown-ticks);
+                    for(int i=0;i<NASTY_SHOT_SLOT_COUNT;i++)
+                        assert(OBJ_ZONE(&shots[i])==-1);
+                    cases++;
+                }
+            }
+        }
+    }
+    printf("PASS: %d shotgun soldier cases: both targets/options, near/far, tick batching, windup, damage, sound, cooldown, no projectiles\n",cases);
+}
+
 int main(void)
 {
     math_tables_init();
+    check_shotgun_soldier();
     static GameState state;
     static GameObject objects[2];
     static uint8_t points[16];
@@ -83,7 +144,8 @@ int main(void)
             assert(played_count==before+1);
             int index=obj_type_to_enemy_index(shooters[i]);
             int sample=shooters[i]==OBJ_NBR_ROBOT?9:enemy_params[index].attack_sound;
-            int noise=shooters[i]==OBJ_NBR_MARINE?200:100;
+            int noise=(shooters[i]==OBJ_NBR_MARINE ||
+                       shooters[i]==OBJ_NBR_FLAME_MARINE)?200:100;
             const PlayerState *listener=mode?&state.plr2:&state.plr1;
             assert(played_sample==sample);
             assert(played_volume==audio_distance_volume(noise,

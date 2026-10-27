@@ -4,8 +4,7 @@ The six requested changes are implemented in the PC and web paths:
 
 1. `marine_hitscan_projectiles=0` in both the template and engine defaults.
    `objects.c` already separates the normal rifle's `marine_hitscan_burst`
-   from the other ranks' attacks, so their green projectiles and shotgun
-   behavior are preserved. Existing INI files with `=1` retain that preference;
+   from the other ranks' attacks. Existing INI files with `=1` retain that preference;
    change it to `=0` to select hitscan.
 2. The original `AB3DI.s` `hitcol` pulse now drives a translucent red overlay
    across the borderless view. Both players' timers fade independently in
@@ -89,3 +88,22 @@ Shooting checks cover 40 cases: both players, mouse/fixed-view pistol and
 shotgun, and controller plasma auto-aim, each turning/strafing into and out
 of a worm target. The turn-onto-target case failed before the cache fix
 (zero damage, ammo consumed) and passes afterward.
+
+The shotgun soldier report exposed an unreachable shotgun branch in
+`object_handle_marine`: `OBJ_NBR_FLAME_MARINE` always selected a flame projectile.
+Despite its legacy name, `amiga/FlameMarine.s` `FlameMarineAttackPLR1` fires
+five instant-hit pellets, each dealing two damage, with sample 21 at Noisevol
+200 and a `200+(rand&255)` recovery timer after the attack timer drops below 20.
+That attack now replaces the flamer branch, and the enemy data describes the
+shotgun. The source's conflicting `FlameMarineAttackPLR2` flamer code is
+deliberately not reproduced: both targets receive the single-player shotgun
+attack. The rifle projectile preference does not affect this enemy.
+
+`tests/feedback_enemy_audio.c` adds 16 shotgun attack cases covering both
+targets, both rifle-option values, near/far damage, single/batched ticks,
+windup, sound, recovery, and an unused projectile pool. These use synthetic
+states and the production handler; an original-game emulator comparison
+has not been performed. For an oracle check, capture `FlameMarineAttackPLR1`
+before/after firing at close range: `FourthTimer`, `ThirdTimer`, sample/volume,
+player `damagetaken`, and `NastyShotData`; expect sample 21, five hit rolls,
+at most ten queued damage, and no projectile allocation.

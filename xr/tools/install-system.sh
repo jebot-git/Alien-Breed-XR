@@ -13,3 +13,7 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     abxr_prefix=$(sed -n 's/^CMAKE_INSTALL_PREFIX:PATH=//p' "$abxr_build/CMakeCache.txt")
     update-desktop-database "$abxr_prefix/share/applications"
 fi
+abxr_prefix=$(sed -n 's/^CMAKE_INSTALL_PREFIX:PATH=//p' "$abxr_build/CMakeCache.txt")
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache --force --ignore-theme-index "$abxr_prefix/share/icons/hicolor"
+fi

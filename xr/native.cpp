@@ -7,6 +7,7 @@
 #include "locomotion.hpp"
 #include "render.hpp"
 #include "xr.hpp"
+#include "stb_image.h"
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <algorithm>
@@ -62,6 +63,15 @@ float crouchCompensation(const GameState &state) {
     return xr ? crouchViewCompensation(state.plr1.height / 8192.f, physicalTarget) : 0;
 }
 Game sceneGame(GameState &state) { return Game{&state, crouchCompensation(state), &overlay}; }
+void setWindowIcon(SDL_Window *target){
+    char path[512];io_make_data_path(path,sizeof(path),"alien-breed-xr.png");
+    int w=0,h=0,channels=0;
+    auto *pixels=stbi_load(path,&w,&h,&channels,4);
+    if(!pixels)return;
+    auto *surface=SDL_CreateRGBSurfaceWithFormatFrom(pixels,w,h,32,w*4,SDL_PIXELFORMAT_RGBA32);
+    if(surface){SDL_SetWindowIcon(target,surface);SDL_FreeSurface(surface);}
+    stbi_image_free(pixels);
+}
 void menuState(GameState &state, bool open) {
     overlay.menu = open;
     if (open)
@@ -195,6 +205,10 @@ void captureFrame(int w, int h) {
 }
 } // namespace
 static int startup(int argc, char **argv) {
+    SDL_SetHint(SDL_HINT_APP_NAME,"Alien Breed XR");
+    SDL_SetHint("SDL_APP_ID","alien-breed-xr");
+    SDL_SetHint("SDL_VIDEO_WAYLAND_WMCLASS","alien-breed-xr");
+    SDL_SetHint("SDL_VIDEO_X11_WMCLASS","alien-breed-xr");
     std::signal(SIGTERM, [](int) { stopRequested = 1; });
     std::signal(SIGINT, [](int) { stopRequested = 1; });
     std::string mode = "auto";
@@ -560,6 +574,7 @@ extern "C" void abxr_present(void *data) {
             if (!window)
                 throw std::runtime_error("No native OpenGL window");
             SDL_SetWindowTitle(window, "Alien Breed XR");
+            setWindowIcon(window);
             renderer.weapons.loadAll();
             initialized = true;
             std::cerr << "GPU: " << glGetString(GL_RENDERER) << " / SDL " << SDL_GetCurrentVideoDriver()

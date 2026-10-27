@@ -16,3 +16,7 @@
 - SDL2, OpenGL/Mesa, GLU, EGL, X11, OpenXR, libcurl and nlohmann-json are system
   dependencies and retain their respective licenses. The build uses system
   SDL2 rather than downloading a separate SDL copy.
+- The Alien Breed XR launcher emblem in `assets/icons/` is newly generated
+  port artwork authored with the built-in imagegen tool. Its transparent master,
+  export instructions and full prompts are kept alongside the PNGs. It is not
+  extracted original game artwork and does not change existing game licenses.

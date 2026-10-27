@@ -1,0 +1,79 @@
+Alien Breed 3D II weapon mesh reuse audit — 2026-10-27
+
+Result: feasible. Actual compiled vector geometry and animation frames were
+successfully decoded and exported for eight weapons. This audit does not yet
+replace the controller pointers or enable weapon rendering in the game.
+
+Source pinned for this inspection:
+https://github.com/mheyer32/alienbreed3d2/tree/86abb5c5b28cbab874e46b96c94b93b51bff56ec/media/vectobj
+
+Asset             Vertices  Polygons  Triangles  Frames
+pistol                  40        21         46       1
+shotgun                 58        34         74       9
+plasmagun              169        99        198       2
+grenadelauncher         125        77        160       4
+rocketlauncher         127       153        308      14
+blaster                192       113        232       4
+rifle                  155       105        210       4
+sawgun                 149        84        188       2
+
+Counts include every part before frame visibility masks. All 40 frames decode;
+all polygon indices, closure records, sort references and frame ranges validate.
+All eight first frames were visually reviewed in a neutral-material preview.
+UV coordinates and original texture words are preserved in the OBJ exports.
+The preview does not reconstruct the authored textures or lighting.
+
+Suggested AB3D I mapping (subject to visual fit/alignment review):
+- Gun 0, pistol: pistol
+- Gun 7, shotgun: shotgun
+- Gun 1, plasma: plasmagun
+- Gun 4, grenade launcher: grenadelauncher
+- Gun 2, rocket launcher: rocketlauncher
+- Gun 3, flamethrower: no confirmed matching complete weapon mesh in this audit.
+  The flame.prj name alone is not evidence of a complete flamethrower weapon.
+Blaster, rifle and sawgun are additional models, not automatic replacements for
+unrelated AB3D I weapons. Historical asset names are not proof of a final retail
+weapon's exact appearance.
+
+Existing local originals:
+The archive already contains .prj editor projects for these weapon families in
+amiga/archive/vectorobjects. Sample component blobs were compared with the
+pinned TKG tree: pistolbarrel, shotgun stock, plasma barrel1, grenade barrel and
+rocket barrel1 are byte-identical. These are shared archived source assets.
+The .obj editor components use the binary "SBP Object" format, not Wavefront
+OBJ. The inspection tool reads the compiled models from media/vectobj instead.
+
+Required integration work:
+1. Add a GPU vector importer. The sequel's format is not a drop-in input for
+   src/renderer_3dobj.c::poly_obj_load: it starts with a sort flag and has four
+   bytes per frame-table entry (point and polygon-normal pointers), point-angle
+   bytes, per-frame part visibility masks, and additional shading data.
+2. Handle the legacy compiled pistol separately. It omits the four-byte part
+   visibility mask. Treating it as a modern frame corrupts its vertex positions.
+3. Decode original material/texture pages and palette into GPU textures once.
+   In TKG objdrawhires.s, the high texture-word bit selects the second 65536-byte
+   bank; it must not be passed unchanged to AB3D I's texture sampler. Preserve
+   cutout, shading and per-part state. Inspection exports are geometry/UV only.
+4. Establish per-weapon grip, muzzle and scale transforms. Pistol and shotgun
+   have their long axis along X; the other inspected models mainly use Z. Raw
+   frames contain authored translations/rotations for first-person animation;
+   normalizing every frame independently would destroy those relationships.
+   Keep the muzzle aligned with the aim pose already used by controller shots.
+5. Map AB3D I firing/reload state to the sequel's frame sequences deliberately.
+   AB3D I gun_frame is a countdown for sprite animation, not a TKG mesh-frame
+   number. A direct assignment would animate incorrectly or exceed bounds.
+6. Upload static topology and frame vertices once; use GPU depth testing and
+   stereo view transforms. These models have only 46–308 fan triangles each,
+   so their geometry does not justify CPU rasterization or GPU readbacks.
+
+Reproduce with a local checkout of the pinned TKG source:
+python3 xr/tools/inspect_tkg_weapons.py <checkout>/media/vectobj \
+  --output artifacts/tkg-weapon-audit/export --all-frames
+
+Local evidence (ignored artifacts, not runtime/install dependencies):
+artifacts/tkg-weapon-audit/export/report.json
+artifacts/tkg-weapon-audit/export/*-NN.obj
+artifacts/tkg-weapon-audit/geometry-preview.png
+
+Original source/asset ownership and notices remain in effect; this inspection
+adds no license grant and does not relicense or vendor the sequel's assets.

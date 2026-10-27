@@ -186,6 +186,7 @@ int main(int argc, char *argv[])
             continue;
         }
         if (g_state.finished_level && !input_quit_requested()) {
+            if (g_state.current_level == 15) abxr_show_ending(&g_state);
             io_release_level_memory(&g_state.level);
             ++g_state.current_level;
         } else break;

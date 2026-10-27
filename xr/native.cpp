@@ -50,6 +50,10 @@ int useActions = 0;
 XrVector2f lastMovement{}, firstMovement{};
 int movementSamples = 0;
 Overlay overlay;
+bool forcePresentation = false, explicitLevel = false, presentationHeld = true, presentationReleasePending = false;
+int presentedLevel = -1, titleFrames = 0, storyFrames = 0, endingFrames = 0;
+int presentedLoads = 0;
+Uint32 presentationStarted = 0;
 bool previousHeld = false, nextHeld = false, selectHeld = false, navHeld = false, suppressActions = false,
      requireNeutral = false;
 int pendingWeapons = 0, previousActions = 0, nextActions = 0, menuOpens = 0, saves = 0, loads = 0;
@@ -142,6 +146,13 @@ void menuAction(GameState &state) {
         break;
     }
 }
+void presentPage(GameState &state, Presentation page) {
+    menuState(state, false);
+    overlay.presentation = page;
+    presentationHeld = true;
+    presentationStarted = SDL_GetTicks();
+}
+bool presentationEnabled() { return !frameLimit || forcePresentation; }
 float angle(const GameState &state) { return state.plr1.angpos * 6.283185307f / 8192; }
 void release() {
     useHeld = pendingUse = false;
@@ -234,8 +245,12 @@ static int startup(int argc, char **argv) {
             mode = "xr";
         else if (arg == "--desktop")
             mode = "desktop";
-        else if (arg == "--level")
+        else if (arg == "--level") {
             level = std::clamp(std::stoi(value()) - 1, 0, 15);
+            explicitLevel = true;
+        }
+        else if (arg == "--presentation")
+            forcePresentation = true;
         else if (arg == "--frames")
             frameLimit = std::max(1, std::stoi(value()));
         else if (arg == "--capture")
@@ -245,7 +260,7 @@ static int startup(int argc, char **argv) {
         else if (arg == "--help") {
             std::cout
                 << "Alien Breed XR [--xr|--desktop] [--level 1..16] [--frames N] [--capture PPM] [--report "
-                   "JSON]\nF8: XR/desktop | Escape: pause | Enter: resume | R: recenter | Ctrl+Q: quit\nXR: "
+                   "JSON] [--presentation]\nBounded --frames runs skip title/story unless --presentation is set.\nF8: XR/desktop | Escape: pause | Enter: resume | R: recenter | Ctrl+Q: quit\nXR: "
                    "left stick move, right stick turn, right trigger fire, A/X use, left menu pause\n";
             return 1;
         }
@@ -303,7 +318,7 @@ extern "C" int abxr_poll(void *data) {
                 enter();
             else
                 paused = false;
-        } else
+        } else if (overlay.presentation == Presentation::Gameplay)
             menuState(state, !overlay.menu);
     }
     escape = key;
@@ -335,6 +350,39 @@ extern "C" int abxr_poll(void *data) {
         getenv("SDL_VIDEODRIVER") && std::string(getenv("SDL_VIDEODRIVER")) != "offscreen") {
         if (!paused)
             suspend();
+    }
+    if (overlay.presentation != Presentation::Gameplay) {
+        bool selecting = keys[SDL_SCANCODE_RETURN] || keys[SDL_SCANCODE_SPACE];
+        if (xr && !paused) {
+            const auto &tracking = xr->tracking();
+            selecting |= tracking.use || tracking.fire;
+        }
+        if (!paused && selecting && !presentationHeld && SDL_GetTicks() - presentationStarted >= 250) {
+            if (overlay.presentation == Presentation::Title)
+                presentPage(state, Presentation::Level);
+            else {
+                overlay.presentation = Presentation::Gameplay;
+                menuState(state, false);
+                presentationReleasePending = true;
+            }
+        }
+        presentationHeld = selecting;
+        std::fill(std::begin(state.key_map), std::end(state.key_map), 0);
+        state.plr1.fire = state.plr1.p_fire = 0;
+        state.plr1.clicked = state.plr1.p_clicked = 0;
+        if (!xr) SDL_Delay(8);
+        return 1;
+    }
+    if (presentationReleasePending) {
+        bool held = keys[SDL_SCANCODE_RETURN] || keys[SDL_SCANCODE_SPACE];
+        if (xr) held |= xr->tracking().use || xr->tracking().fire;
+        presentationReleasePending = held;
+        if (held) {
+            std::fill(std::begin(state.key_map), std::end(state.key_map), 0);
+            state.plr1.fire = state.plr1.p_fire = 0;
+            if (!xr) SDL_Delay(8);
+            return 1;
+        }
     }
     if (xr && !paused) {
         auto t = xr->tracking();
@@ -452,12 +500,29 @@ extern "C" int abxr_weapon_steps(const void *data, const void *player) {
     return steps;
 }
 extern "C" void abxr_level_loaded(void *data) {
+    auto &state = *static_cast<GameState *>(data);
     renderer.invalidateLevel();
     pendingWeapons = 0;
     pendingUse = false;
     pendingFireClick=false;
     requireNeutral = true;
     suppressActions = true;
+    // Save reloads must resume directly; advancing a level restores its
+    // original narrative before the first simulation update.
+    if (presentationEnabled() && presentedLevel != state.current_level && loads == presentedLoads)
+        presentPage(state, presentedLevel < 0 && !explicitLevel ? Presentation::Title : Presentation::Level);
+    presentedLevel = state.current_level;
+    presentedLoads = loads;
+}
+extern "C" void abxr_show_ending(void *data) {
+    if (!presentationEnabled() || quitting) return;
+    auto &state = *static_cast<GameState *>(data);
+    presentPage(state, Presentation::Ending);
+    while (!quitting && overlay.presentation != Presentation::Gameplay) {
+        input_update(state.key_map, &state.last_pressed);
+        abxr_poll(&state);
+        abxr_present(&state);
+    }
 }
 extern "C" int abxr_accelerate(void *data, void *player, int32_t *x, int32_t *z, int ticks, int height,
                                int runPercent) {
@@ -598,6 +663,9 @@ extern "C" void abxr_present(void *data) {
             }
         }
         renderer.desktop(sceneGame(state), w, h);
+        titleFrames += overlay.presentation == Presentation::Title;
+        storyFrames += overlay.presentation == Presentation::Level;
+        endingFrames += overlay.presentation == Presentation::Ending;
         if (previousGun >= 0 && previousGun != state.plr1.gun_selected)
             ++weaponChanges;
         previousGun = state.plr1.gun_selected;
@@ -613,6 +681,8 @@ extern "C" void abxr_present(void *data) {
         if (!report.empty())
             std::ofstream(report)
                 << nlohmann::json{{"frames", frames},
+                                  {"title_frames", titleFrames}, {"story_frames", storyFrames}, {"ending_frames", endingFrames},
+                                  {"presentation", int(overlay.presentation)},
                                   {"xr_entries", entries},
                                   {"xr_suspends", suspends},
                                   {"controller_shots", shots},
@@ -624,6 +694,9 @@ extern "C" void abxr_present(void *data) {
                                   {"simulation_elapsed_ms", state.current_ticks_ms-firstLogicMs},
                                   {"shot_billboards_rendered", renderer.shotBillboardsRendered},
                                   {"explosion_billboards_rendered", renderer.explosionBillboardsRendered},
+                                  {"switch_panels_rendered", renderer.switchPanelsRendered},
+                                  {"switch_panels_mounted", renderer.switchPanelsMounted},
+                                  {"switch_mount_errors", renderer.switchMountErrors},
                                   {"vector_objects_rendered", renderer.vectorObjectsRendered},
                                   {"vector_meshes_uploaded", renderer.vectorMeshesUploaded},
                                   {"aim_laser_draws", renderer.laserDraws},

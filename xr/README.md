@@ -183,6 +183,12 @@ original engine's pending full save through a level reload without reopening
 the XR session. `ABXR_SAVE_DIR` can override the directory for isolated tests.
 
 `--frames N`, `--report FILE.json` and `--capture FILE.ppm` are test hooks.
+Normal startup shows the original title bitmap, followed by each level's
+original story page in a stable binocular overlay. A/X, trigger, Space or
+Enter advances after a fresh press; gameplay stays frozen until release.
+The original ending is also restored after level 16. `--level N` starts at
+that level's story. Bounded `--frames` runs skip presentation unless
+`--presentation` is requested, so existing gameplay captures remain useful.
 Production rendering has no framebuffer readback; capture is explicit.
 `-DAB3D_XR=OFF` retains the upstream software-rendered executable.
 
@@ -191,7 +197,7 @@ Production rendering has no framebuffer readback; capture is explicit.
 This is a working source-port prototype, **not a completed VR conversion**.
 Curved-wall records, complete sprite frame/type fallbacks,
 water/bump effects, exact original lighting/material accuracy, sky and the
-original title/options menu presentation are not fully ported. Unknown/unavailable sprite
+original options menu are not fully ported. Unknown/unavailable sprite
 frames have coloured markers. Floor texture scale and wall UV fidelity need
 further comparison with the original renderer. The original collision/AI still
 uses its authored room/zone representation; head collision corrects the view

@@ -3,6 +3,9 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <algorithm>
+extern "C" {
+#include "display.h"
+}
 
 namespace tempest {
 namespace {
@@ -115,6 +118,42 @@ void Renderer::finishFrame(const Game &game, int, int, int, int, int) {
     loadOverlay();
     const auto &s = *game.state;
     const auto &p = s.plr1;
+    if (game.overlay && game.overlay->presentation != Presentation::Gameplay) {
+        // Opaque, binocular, head-relative original presentation. Simulation
+        // stays suspended until a fresh action; the world cannot bleed through.
+        glColor4f(0, 0, 0, 1);
+        quad(0, -10, -10, 20, 20);
+        glColor4f(1, 1, 1, 1);
+        if (game.overlay->presentation == Presentation::Title) {
+            quad(display_title_screen_gl_texture(), -.85f, -.62f, 1.7f, 1.36f);
+            glColor4f(0, 0, 0, .78f);
+            quad(0, -.85f, .59f, 1.7f, .15f);
+            glColor4f(1, 1, 1, 1);
+            text("ALIEN BREED 3D", -.237f, .63f, .055f);
+        } else if (game.overlay->presentation == Presentation::Level) {
+            int level = std::clamp(int(s.current_level), 0, 15);
+            std::string heading = level_text_heading[level];
+            text(heading, -float(heading.size()) * .045f * 4 / 13, .58f, .045f);
+            // Original 80-column, 15-row story pages, with their authored line
+            // breaks and blank rows intact rather than a rewritten synopsis.
+            for (int row = 0; row < LEVEL_TEXT_VISIBLE_ROWS; ++row)
+                text(level_text[level][row], -.94f, .43f - row * .058f, .038f);
+        } else {
+            std::string page = end_game_text;
+            float y = .5f;
+            for (size_t start = 0; start < page.size();) {
+                auto end = page.find('\n', start);
+                auto line = page.substr(start, end - start);
+                text(line, -float(line.size()) * .045f * 4 / 13, y, .045f);
+                y -= .085f;
+                if (end == std::string::npos) break;
+                start = end + 1;
+            }
+        }
+        text("A / X / TRIGGER / ENTER: CONTINUE", -.46f, -.7f, .032f);
+        glPopAttrib();
+        return;
+    }
     if(s.hitcol>0){
         /* Original USEPLR hit flash, drawn once per eye at stable stereo
          * depth. HUD remains readable over the brief world tint. */

@@ -35,6 +35,8 @@ void display_release_panel_memory(void);
 /* Title screen */
 void display_setup_title_screen(void);
 void display_load_title_screen(void);
+/* Borrow the original decoded title's GPU texture in the current GL context. */
+unsigned int display_title_screen_gl_texture(void);
 void display_clear_opt_screen(void);
 void display_draw_opt_screen(int screen_num);
 void display_fade_up_title(int amount);

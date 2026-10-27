@@ -20,6 +20,7 @@ class Renderer {
     std::map<const uint8_t *, unsigned> polygons;
     std::map<int,unsigned> vectorMeshes,vectorTextures;
     std::map<std::array<int,6>,unsigned> wallTextures;
+    std::map<const uint8_t *,std::array<float,2>> switchOffsets;
     unsigned wallTexture(int id,int rows,int shift,int mask,int offset,bool holes);
     unsigned vectorTexture(int map,bool holes);
     void floor(const LevelState &, const uint8_t *, int, float);
@@ -32,6 +33,8 @@ class Renderer {
     unsigned long shotBillboardsRendered=0,explosionBillboardsRendered=0;
     unsigned long vectorObjectsRendered=0,vectorMeshesUploaded=0;
     unsigned long laserDraws=0,damageFlashDraws=0;
+    unsigned long switchPanelsRendered=0;
+    unsigned long switchPanelsMounted=0,switchMountErrors=0;
     void world(const Game &game, bool xr);
     void finishFrame(const Game &, int, int, int, int, int);
     void desktop(const Game &, int w, int h);

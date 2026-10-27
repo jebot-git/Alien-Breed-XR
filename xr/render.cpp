@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <stdexcept>
+#include <set>
 extern "C" {
 #include "renderer_3dobj.h"
 }
@@ -17,6 +18,43 @@ void point(const LevelState &level, int id, float y, float u = 0, float v = 0) {
     auto p = level.points + id * 4;
     glTexCoord2f(u, v);
     glVertex3f(w(p) / 32.f, y, w(p + 2) / 32.f);
+}
+bool roomSurfaceContains(const LevelState &level, int zone, float x, float z) {
+    // Collision lists also contain extra neighboring walls (not polygon
+    // boundaries, notably Admin Block room 99). Use the actual authored floor
+    // polygons to decide which side of a mounted panel faces its room.
+    if (zone < 0 || zone >= level.num_zone_graph_entries) return false;
+    auto end = level.graphics + level.graphics_byte_count;
+    for (int upper = 0; upper < 2; ++upper) {
+        int offset = l(level.zone_graph_adds + zone * 8 + upper * 4);
+        if (offset <= 0 || size_t(offset + 2) > level.graphics_byte_count) continue;
+        auto ptr = level.graphics + offset + 2;
+        for (int entries = 0; entries < 1000 && ptr + 2 <= end; ++entries) {
+            int type = w(ptr); ptr += 2;
+            if (type < 0) break;
+            if (type == 1 || type == 2 || (type >= 7 && type <= 11)) {
+                if (ptr + 4 > end) break;
+                int count = w(ptr + 2) + 1;
+                if (count < 3 || count > 100 || ptr + 4 + count * 2 + 8 > end) break;
+                bool inside = false, valid = true;
+                for (int i = 0, j = count - 1; i < count; j = i++) {
+                    int a = w(ptr + 4 + i * 2), b = w(ptr + 4 + j * 2);
+                    if (a < 0 || b < 0 || a >= w(level.data+14) || b >= w(level.data+14)) { valid = false; break; }
+                    auto pa = level.points + a * 4, pb = level.points + b * 4;
+                    float ax = w(pa), az = w(pa+2), bx = w(pb), bz = w(pb+2);
+                    if ((az > z) != (bz > z) && x < (bx - ax) * (z - az) / (bz - az) + ax)
+                        inside = !inside;
+                }
+                if (valid && inside && type != 2) return true;
+                ptr += 4 + count * 2 + 8;
+            } else {
+                int bytes = (type == 0 || type == 5 || type == 13) ? 28 : type == 4 ? 2 : type == 6 ? 4 : 0;
+                if ((!bytes && type != 3 && type != 12) || ptr + bytes > end) break;
+                ptr += bytes;
+            }
+        }
+    }
+    return false;
 }
 } // namespace
 unsigned Renderer::texture(int id, int rows) {
@@ -145,6 +183,7 @@ void Renderer::clear() {
     vectorTextures.clear();
     for(auto [key,tex]:wallTextures)glDeleteTextures(1,&tex);
     wallTextures.clear();
+    switchOffsets.clear();
 }
 void Renderer::world(const Game &game, bool immersive) {
     auto &state = *game.state;
@@ -168,6 +207,7 @@ void Renderer::world(const Game &game, bool immersive) {
         cachedLevel = state.current_level;
     }
     triangles = 0;
+    std::set<const uint8_t *> drawnSwitches;
     for (int zone = 0; zone < level_zone_slot_count(&level); ++zone)
         for (int upper = 0; upper < 2; ++upper) {
             if (zone >= level.num_zone_graph_entries)
@@ -199,6 +239,44 @@ void Renderer::world(const Game &game, bool immersive) {
                         continue;
                     }
                     float top = -l(ptr + 18) / 8192.f, bottom = -l(ptr + 22) / 8192.f;
+                    std::array<float,2> panelOffset{};
+                    if (id == 11) {
+                        // The painter renderer draws switch walls over their
+                        // supporting wall. Give these panels a real, stable
+                        // surface in stereo instead of coplanar depth fighting.
+                        if (!drawnSwitches.insert(ptr).second) { ptr += 28; continue; }
+                        auto found = switchOffsets.find(ptr);
+                        if (found == switchOffsets.end()) {
+                            int owner = zone;
+                            if (level.switch_data)
+                                for (int i = 0; i < 8; ++i) {
+                                    auto sw = level.switch_data + i * 14;
+                                    if (w(sw) >= 0 && l(sw + 6) == ptr + 8 - level.graphics)
+                                        owner = level_connect_to_zone_index(&level, w(sw));
+                                }
+                            if (owner < 0) owner = zone;
+                            auto pa = level.points + a * 4, pb = level.points + b * 4;
+                            float dx = w(pb) - w(pa), dz = w(pb + 2) - w(pa + 2);
+                            float length = std::hypot(dx, dz);
+                            if (length > 0) {
+                                float nx = -dz / length, nz = dx / length;
+                                int cx = (w(pa) + w(pb)) / 2, cz = (w(pa+2) + w(pb+2)) / 2;
+                                if (!roomSurfaceContains(level, owner, cx + nx * 4, cz + nz * 4)) {
+                                    nx = -nx; nz = -nz;
+                                }
+                                ++switchPanelsMounted;
+                                if (!roomSurfaceContains(level, owner, cx + nx * 4, cz + nz * 4))
+                                    ++switchMountErrors;
+                                // One authored world unit: 31 mm. Enough to
+                                // clear slightly inset originals without a
+                                // view-dependent bias or a floating billboard.
+                                panelOffset = {nx / 32, nz / 32};
+                            }
+                            found = switchOffsets.emplace(ptr, panelOffset).first;
+                        }
+                        panelOffset = found->second;
+                        ++switchPanelsRendered;
+                    }
                     int shift=ptr[15],mask=w(ptr+16),from=w(ptr+8)*16;
                     if(!shift && id>=0 && id<MAX_WALL_TILES){shift=g_renderer.wall_valshift[id];rows=g_renderer.wall_valand[id]+1;}
                     auto tex = wallTexture(id,rows,shift,mask,from,type==13);
@@ -209,18 +287,21 @@ void Renderer::world(const Game &game, bool immersive) {
                         glDisable(GL_TEXTURE_2D);
                     float period=std::clamp(mask,0,1023)+1.f;
                     float u1=w(ptr+4)/period,u2=w(ptr+6)/period;
-                    float v1=(w(ptr+10)&(rows-1))/float(rows);
+                    float v1=id==11 ? 0 : (w(ptr+10)&(rows-1))/float(rows);
                     float texHeight=std::max(1.f,(l(ptr+22)-l(ptr+18))/256.f);
                     if(id==11)texHeight=rows;
                     else if(rows<64 && texHeight<64)texHeight=64;
                     float v2=v1+texHeight/rows;
                     if(type==13){glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_GREATER,.4f);}
+                    glPushMatrix();
+                    glTranslatef(panelOffset[0], 0, panelOffset[1]);
                     glBegin(GL_QUADS);
                     point(level, a, top, u1, v1);
                     point(level, b, top, u2, v1);
                     point(level, b, bottom, u2, v2);
                     point(level, a, bottom, u1, v2);
                     glEnd();
+                    glPopMatrix();
                     if(type==13)glDisable(GL_ALPHA_TEST);
                     triangles += 2;
                     ptr += 28;
@@ -413,10 +494,15 @@ void Renderer::desktop(const Game &game, int width, int height) {
     glFrustum(-.05 * aspect, .05 * aspect, -.05, .05, .05, 500);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    world(game, false);
+    if (!game.overlay || game.overlay->presentation == Presentation::Gameplay)
+        world(game, false);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(-1, 1, -.75, .75, .05, 10);
+    if (game.overlay && game.overlay->presentation != Presentation::Gameplay) {
+        double halfHeight = std::max(.8, 1 / aspect);
+        glOrtho(-halfHeight * aspect, halfHeight * aspect, -halfHeight, halfHeight, .05, 10);
+    } else
+        glOrtho(-1, 1, -.75, .75, .05, 10);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     finishFrame(game, 0, 0, 0, width, height);
@@ -481,6 +567,7 @@ void Renderer::floor(const LevelState &level, const uint8_t *indices, int count,
 
 namespace tempest {
 void Renderer::invalidateLevel() {
+    switchOffsets.clear();
     for (auto [key, list] : polygons)
         glDeleteLists(list, 1);
     polygons.clear();

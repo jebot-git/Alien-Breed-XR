@@ -1925,6 +1925,12 @@ static void display_title_screen_ensure_loaded(void)
     free(pal);
 }
 
+unsigned int display_title_screen_gl_texture(void)
+{
+    display_title_screen_ensure_loaded();
+    return g_title_screen_gl_tex;
+}
+
 static void display_ascii_font_free(void)
 {
     if (g_ascii_font_array_tex && g_gl_delete_textures) {

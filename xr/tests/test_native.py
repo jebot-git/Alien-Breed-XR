@@ -14,7 +14,7 @@ OUT.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     env={**os.environ,'SDL_VIDEODRIVER':'offscreen','SDL_AUDIODRIVER':'dummy','XDG_RUNTIME_DIR':directory}
     env['XDG_STATE_HOME']=directory+'/state'
-    for key in ('WAYLAND_DISPLAY','WAYLAND_SOCKET','DISPLAY','LD_PRELOAD','ABXR_SAVE_DIR','ABXR_CONFIG','ABXR_TEST_MENU','ABXR_TEST_WALL','ABXR_TEST_TWO_HAND','ABXR_TEST_MUZZLE','ABXR_TEST_TAP'):env.pop(key,None)
+    for key in ('WAYLAND_DISPLAY','WAYLAND_SOCKET','DISPLAY','LD_PRELOAD','ABXR_SAVE_DIR','ABXR_CONFIG','ABXR_TEST_MENU','ABXR_TEST_WALL','ABXR_TEST_TWO_HAND','ABXR_TEST_MUZZLE','ABXR_TEST_TAP','ABXR_TEST_PRESENTATION'):env.pop(key,None)
     # Use isolated, all-original-weapons fixtures without editing the user's INI.
     game=Path(directory)/'game';game.mkdir()
     binary=game/'alien-breed-xr';shutil.copy2(BUILD/'alien-breed-xr',binary)
@@ -33,8 +33,24 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
         assert result.returncode==0 and data['frames']==12 and data['gpu_triangles']>100 and data['level']==level,data
         assert not data['domed_managed']
         assert data['vector_objects_rendered']>0 and data['vector_meshes_uploaded']>0,data
+        assert data['switch_mount_errors']==0,data
+        if level==1:
+            assert data['switch_panels_mounted']==6 and data['switch_panels_rendered']>=6*12,data
     eyes=OUT/'eyes.txt';eyes.unlink(missing_ok=True)
     env.update(LD_PRELOAD=str(BUILD/'libab3d-mock-openxr.so'),ABXR_TEST_EYES=str(eyes))
+    env['ABXR_TEST_PRESENTATION']='1'
+    env['ABXR_TEST_EYES']=str(OUT/'presentation-eyes.txt')
+    result=subprocess.run([binary,'--xr','--frames','110','--presentation','--report',OUT/'presentation.json'],env=env,capture_output=True,text=True,timeout=35)
+    (OUT/'presentation.log').write_text(result.stdout+result.stderr)
+    pages=json.loads((OUT/'presentation.json').read_text())
+    assert result.returncode==0 and pages['presentation']==0,pages
+    assert pages['title_frames']>=30 and pages['story_frames']>=30,pages
+    assert pages['actual_shots_fired']==0 and pages['use_actions']==0 and pages['weapon_changes']==0,pages
+    assert pages['movement_samples']==0 and 0<pages['weapon_draws']<100,pages
+    assert pages['simulation_vblanks']<45,pages
+    print('PASS original stereo title/story, frozen gameplay, fresh-action dismissal and no carried trigger/Use')
+    env.pop('ABXR_TEST_PRESENTATION')
+    env['ABXR_TEST_EYES']=str(eyes)
     result=subprocess.run([binary,'--xr','--frames','110','--report',OUT/'xr.json','--capture',OUT/'mirror.ppm'],env=env,capture_output=True,text=True,timeout=35)
     log=result.stdout+result.stderr;(OUT/'xr.log').write_text(log)
     assert result.returncode==0 and 'OpenXR frames=110 stereo_frames=110' in log,log[-3000:]

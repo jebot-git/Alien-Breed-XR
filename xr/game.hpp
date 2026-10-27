@@ -15,11 +15,13 @@ extern "C" {
 }
 namespace tempest {
 enum PauseItem { PauseResume, PauseTurning, PauseHeight, PauseSave, PauseLoad, PauseTwoHand, PauseQuit, PauseCount };
+enum class Presentation { Gameplay, Title, Level, Ending };
 struct Overlay {
     bool menu = false, smoothTurn = true;
     bool twoHand=true;
     int selection = 0;
     std::string message;
+    Presentation presentation = Presentation::Gameplay;
 };
 struct Game {
     GameState *state;

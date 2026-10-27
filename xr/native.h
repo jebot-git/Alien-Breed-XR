@@ -14,6 +14,7 @@ int abxr_active_controls(const void *state,const void *player);
 int abxr_crouch_height(const void *state, const void *player);
 int abxr_weapon_steps(const void *state, const void *player);
 void abxr_level_loaded(void *state);
+void abxr_show_ending(void *state);
 void abxr_present(void *state);
 int abxr_aim_active(const void *state,const void *player);
 int abxr_shot_direction(const void *state,const void *player,float *x,float *y,float *z);

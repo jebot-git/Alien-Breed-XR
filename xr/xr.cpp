@@ -515,7 +515,7 @@ bool XR::frame(Renderer &renderer, const Game &game) {
     sampleActions(fs.predictedDisplayTime);
     auto supportGrip=renderer.weapons.supportGrip(game.state->plr1.gun_selected);
     bool enabled=(!game.overlay || game.overlay->twoHand) && x.tracking.supportAvailable;
-    bool blocked=!render || !x.isFocused || !x.visible || (game.overlay && game.overlay->menu);
+    bool blocked=!render || !x.isFocused || !x.visible || (game.overlay && (game.overlay->menu || game.overlay->presentation != Presentation::Gameplay));
     bool wasHeld=x.support.active;
     x.tracking.weaponPose=x.support.update(x.tracking.hands[1],x.tracking.valid[1],x.tracking.grips[0].position,
         x.tracking.gripValid[0],x.tracking.supportHeld,enabled,blocked,game.state->plr1.gun_selected,supportGrip);
@@ -569,7 +569,7 @@ bool XR::frame(Renderer &renderer, const Game &game) {
         auto muzzle=socket.position;
         auto safeWeapon=x.tracking.weaponPose;
         bool weaponReachable=handInReach(safeWeapon,x.tracking.headPosition);
-        if(x.tracking.valid[1] && weaponReachable && (!game.overlay || !game.overlay->menu)){
+        if(x.tracking.valid[1] && weaponReachable && (!game.overlay || (!game.overlay->menu && game.overlay->presentation == Presentation::Gameplay))){
             auto shot=resolveShotOrigin(game,safeWeapon,x.anchor,anchorYaw,socket.position,socket.direction,shift);
             safeWeapon.position.x+=shot.localRetraction.x;
             safeWeapon.position.y+=shot.localRetraction.y;
@@ -615,12 +615,14 @@ bool XR::frame(Renderer &renderer, const Game &game) {
             inversePose(views[i].pose);
             glTranslatef(x.anchor.x, x.anchor.y, x.anchor.z);
             glRotatef(x.yaw, 0, 1, 0);
-            renderer.world(viewGame, true);
+            if (!game.overlay || game.overlay->presentation == Presentation::Gameplay)
+                renderer.world(viewGame, true);
             glLoadIdentity();
             inversePose(views[i].pose);
             // Controller geometry uses its full runtime pose in LOCAL space.
             for (int hand = 0; hand < 2; ++hand)
-                if (x.tracking.valid[hand] && (!hand || weaponReachable)) {
+                if (x.tracking.valid[hand] && (!hand || weaponReachable) &&
+                    (!game.overlay || game.overlay->presentation == Presentation::Gameplay)) {
                     glPushMatrix();
                     auto pose = hand?safeWeapon:x.tracking.hands[hand];
                     // A rigid inverse is transposed by OpenGL; use a quaternion matrix below.

@@ -373,6 +373,10 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateFloat(XrSession, const XrActionSt
         return XR_SUCCESS;
     }
     if(std::getenv("ABXR_TEST_TAP")){out->currentState=(frame==19 || frame==59)?1.f:0.f;return XR_SUCCESS;}
+    if(std::getenv("ABXR_TEST_PRESENTATION")) {
+        out->currentState = ((frame >= 35 && frame <= 40) || (frame >= 75 && frame <= 80)) ? 1.f : 0.f;
+        return XR_SUCCESS;
+    }
     out->currentState = !std::getenv("ABXR_TEST_MENU") && (frame > 15 && frame < 75) ? 1.f : 0.f;
     return XR_SUCCESS;
 }
@@ -402,7 +406,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetActionStateBoolean(XrSession, const XrAction
         out->currentState =
             (name == "pause" && !right && (frame == 10 || frame == 80)) ||
             (name == "use" && right && (frame == 24 || frame == 28 || frame == 38 || frame == 52 || frame == 66 || frame == 92 || frame==96 || frame==106));
-    } else if(std::getenv("ABXR_TEST_TWO_HAND") || std::getenv("ABXR_TEST_MUZZLE") || std::getenv("ABXR_TEST_TAP")){
+    } else if(std::getenv("ABXR_TEST_TWO_HAND") || std::getenv("ABXR_TEST_MUZZLE") || std::getenv("ABXR_TEST_TAP") || std::getenv("ABXR_TEST_PRESENTATION")){
         out->currentState=XR_FALSE; // squeeze must never be interpreted as Use/fire/weapon cycling
     } else {
         out->currentState = (name == "use" && (right ? frame >= 20 && frame <= 28 : frame == 68)) ||

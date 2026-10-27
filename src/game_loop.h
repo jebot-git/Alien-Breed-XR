@@ -43,6 +43,8 @@ typedef enum GameLoopFrontMenuResult {
 typedef struct GameLoopCtx {
     int frame_count;
     int logic_count;
+    int weapon_vblanks;
+    int weapon_clicks[2];
     Uint32 last_ticks;
     int pending_vblanks;
     Uint32 vblank_remainder_ms;

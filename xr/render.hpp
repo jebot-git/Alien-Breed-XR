@@ -9,6 +9,7 @@ class Renderer {
     std::map<int, unsigned> textures;
     std::map<unsigned long long, unsigned> sprites;
     unsigned sprite(int vect, int frame, int width, int height);
+    bool billboard(const Game &,const XrBillboardInfo &,float x,float z);
     unsigned fontTexture = 0, digits[2]{}, cards[4]{};
     int fontWidth = 0, fontHeight = 0, digitWidth[2]{}, digitHeight[2]{};
     void loadOverlay();
@@ -22,6 +23,7 @@ class Renderer {
   public:
     WeaponRenderer weapons;
     unsigned long triangles = 0;
+    unsigned long shotBillboardsRendered=0,explosionBillboardsRendered=0;
     void world(const Game &game, bool xr);
     void finishFrame(const Game &, int, int, int, int, int);
     void desktop(const Game &, int w, int h);

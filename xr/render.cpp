@@ -226,7 +226,7 @@ void Renderer::world(const Game &game, bool immersive) {
             auto obj = reinterpret_cast<GameObject *>(level.object_data + i * OBJECT_SIZE);
             if (OBJ_CID(obj) < 0)
                 break;
-            if (OBJ_ZONE(obj) < 0 || obj->obj.number < 0 ||
+            if (OBJ_ZONE(obj) < 0 ||
                 obj == reinterpret_cast<GameObject *>(level.plr1_obj))
                 continue;
             int id = OBJ_CID(obj);
@@ -236,37 +236,61 @@ void Renderer::world(const Game &game, bool immersive) {
             XrBillboardInfo info{};
             if(!renderer_xr_billboard_info(obj,&info))continue;
             float x = w(pos) / 32.f, z = w(pos + 4) / 32.f;
-            float half=info.width/64.f,height=info.height/32.f;
-            // ObjDraw3's authored Y is the centre, not the feet. Preserve the
-            // centre of flying objects too; do not force every sprite to a floor.
-            float y=-info.center_y/8192.f-height*.5f;
-            auto tex = sprite(info.vector,info.frame,info.columns,info.rows);
-            float yaw = std::atan2(p.xoff / 65536.f / 32 - x, p.zoff / 65536.f / 32 - z),
-                  rx = std::cos(yaw) * half, rz = -std::sin(yaw) * half;
-            if (tex) {
-                glEnable(GL_TEXTURE_2D);
-                glBindTexture(GL_TEXTURE_2D, tex);
-                glEnable(GL_ALPHA_TEST);
-                glAlphaFunc(GL_GREATER, .4f);
-                glColor3f(1, 1, 1);
-            } else {
-                glDisable(GL_TEXTURE_2D);
-                glColor3f(1, .25f, .12f);
-            }
-            glBegin(GL_QUADS);
-            glTexCoord2f(0, 1);
-            glVertex3f(x - rx, y, z - rz);
-            glTexCoord2f(1, 1);
-            glVertex3f(x + rx, y, z + rz);
-            glTexCoord2f(1, 0);
-            glVertex3f(x + rx, y + height, z + rz);
-            glTexCoord2f(0, 0);
-            glVertex3f(x - rx, y + height, z - rz);
-            glEnd();
-            glDisable(GL_ALPHA_TEST);
+            billboard(game,info,x,z);
         }
+    // Projectiles, impact puffs, gibs and blast particles occupy separate pools
+    // in the original engine. They are not entries in level.object_data.
+    for(int pool=0;pool<2;++pool){
+        const uint8_t *data=pool?level.nasty_shot_data:level.player_shot_data;
+        int count=pool?NASTY_SHOT_SLOT_COUNT:PLAYER_SHOT_SLOT_COUNT;
+        if(!data || !level.object_points)continue;
+        for(int i=0;i<count;++i){
+            auto object=reinterpret_cast<const GameObject*>(data+i*OBJECT_SIZE);
+            int id=OBJ_CID(object);
+            if(OBJ_ZONE(object)<0 || object->obj.number!=OBJ_NBR_BULLET || id<0 || id>=level.num_object_points)continue;
+            XrBillboardInfo info{};if(!renderer_xr_shot_info(object,&info))continue;
+            auto point=level.object_points+id*8;
+            if(billboard(game,info,w(point)/32.f,w(point+4)/32.f))++shotBillboardsRendered;
+        }
+    }
+    for(int i=0;i<state.num_explosions;++i){
+        XrBillboardInfo info{};if(!renderer_xr_explosion_info(&state,i,&info))continue;
+        if(billboard(game,info,state.explosions[i].x/32.f,state.explosions[i].z/32.f))++explosionBillboardsRendered;
+    }
     glDisable(GL_TEXTURE_2D);
     glPopMatrix();
+}
+bool Renderer::billboard(const Game &game,const XrBillboardInfo &info,float x,float z){
+    auto &p=game.state->plr1;
+    float half=info.width/64.f,height=info.height/32.f;
+    // ObjDraw3's authored Y is the centre, not the feet. Preserve the
+    // centre of flying objects too; do not force every sprite to a floor.
+    float y=-info.center_y/8192.f-height*.5f;
+    auto tex = sprite(info.vector,info.frame,info.columns,info.rows);
+    float yaw = std::atan2(p.xoff / 65536.f / 32 - x, p.zoff / 65536.f / 32 - z),
+          rx = std::cos(yaw) * half, rz = -std::sin(yaw) * half;
+    if (tex) {
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glEnable(GL_ALPHA_TEST);
+        glAlphaFunc(GL_GREATER, .4f);
+        glColor3f(1, 1, 1);
+    } else {
+        glDisable(GL_TEXTURE_2D);
+        glColor3f(1, .25f, .12f);
+    }
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 1);
+    glVertex3f(x - rx, y, z - rz);
+    glTexCoord2f(1, 1);
+    glVertex3f(x + rx, y, z + rz);
+    glTexCoord2f(1, 0);
+    glVertex3f(x + rx, y + height, z + rz);
+    glTexCoord2f(0, 0);
+    glVertex3f(x - rx, y + height, z - rz);
+    glEnd();
+    glDisable(GL_ALPHA_TEST);
+    return tex!=0;
 }
 void Renderer::desktop(const Game &game, int width, int height) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

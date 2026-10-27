@@ -188,3 +188,11 @@ actual offscreen GPU, with visible-pixel checks and captures under
 `artifacts/weapon-gpu-test/`. Footstep audio tests verify original sample
 durations and normal mixer consumption at 8007 and 48000 Hz. The stereo fixture
 checks model uploads, weapon draw calls in both eyes and weapon switching.
+
+Combat uses the controller ray in the original engine's +Z/sine-cosine convention.
+Player and enemy shot pools, impact particles and the separate explosion list
+share the GPU billboard path. Player weapon checks use a two-PAL-VBlank clock
+independent of 50Hz movement and headset presentation. See ORIGINAL_TIMING.txt
+for source locations, the variable original cadence, the chosen reference pace,
+and damage/rate tests. Reports distinguish actual_shots_fired from controller
+aim updates and include simulation VBlanks, elapsed time and rendered effects.

@@ -1,5 +1,6 @@
 #ifdef AB3D_XR
 #include "native.h"
+#include "combat.h"
 #endif
 /*
  * Alien Breed 3D I - PC Port
@@ -328,6 +329,8 @@ static void game_loop_pause_timing(GameState *state, GameLoopCtx *ctx)
 {
     ctx->last_ticks = SDL_GetTicks();
     ctx->pending_vblanks = 0;
+    ctx->weapon_vblanks = 0;
+    ctx->weapon_clicks[0]=ctx->weapon_clicks[1]=0;
     ctx->vblank_remainder_ms = 0;
     ctx->fps_sample_start_counter = SDL_GetPerformanceCounter();
     ctx->fps_frames_in_sample = 0;
@@ -1546,11 +1549,13 @@ void game_loop_tick(GameState *state, GameLoopCtx *ctx)
             ctx->vblank_remainder_ms += elapsed;
             ctx->pending_vblanks += (int)(ctx->vblank_remainder_ms / 20);
             ctx->vblank_remainder_ms %= 20;
+#ifndef AB3D_XR
             if (ctx->hidden_present_frames > 0 &&
                 ctx->pending_vblanks < GAME_TICK_VBLANKS) {
                 ctx->pending_vblanks = GAME_TICK_VBLANKS;
                 ctx->vblank_remainder_ms = 0;
             }
+#endif
         }
 
         /* Track how far we are into the current 50Hz tick (0=just ticked, 1=about to tick).
@@ -1572,6 +1577,9 @@ void game_loop_tick(GameState *state, GameLoopCtx *ctx)
 
             state->frames_to_draw = (int16_t)ticks;
             state->temp_frames = (int16_t)ticks;
+#ifdef AB3D_XR
+            abxr_logic_tick(state);
+#endif
             audio_begin_frame();
 
             /* Water waves are an Amiga draw-loop visual animation. Keep them
@@ -1693,15 +1701,26 @@ void game_loop_tick(GameState *state, GameLoopCtx *ctx)
 
             /* ---- Phase 14: Shooting, objects ---- */
 #ifdef AB3D_XR
-            abxr_begin_shot(state);
+            int simulation_ticks=state->temp_frames;
+            ctx->weapon_vblanks+=simulation_ticks;
+            abxr_weapon_click(&ctx->weapon_clicks[0],state->plr1.p_clicked,0);
+            abxr_weapon_click(&ctx->weapon_clicks[1],state->plr2.p_clicked,0);
+            int weapon_ticks;
+            while((weapon_ticks=abxr_weapon_clock(&ctx->weapon_vblanks,0))>0){
+                state->temp_frames=(int16_t)weapon_ticks;
+                state->plr1.p_clicked=(int8_t)abxr_weapon_click(&ctx->weapon_clicks[0],0,1);
+                state->plr2.p_clicked=(int8_t)abxr_weapon_click(&ctx->weapon_clicks[1],0,1);
+                abxr_begin_shot(state);
 #endif
-            player1_shoot(state);
+                player1_shoot(state);
 #ifdef AB3D_XR
-            abxr_end_shot(state);
+                abxr_end_shot(state);
 #endif
-            if (state->mode != MODE_SINGLE) {
-                player2_shoot(state);
+                if (state->mode != MODE_SINGLE)player2_shoot(state);
+#ifdef AB3D_XR
+                state->temp_frames=(int16_t)simulation_ticks;
             }
+#endif
 
             use_player1(state);
             if (state->mode != MODE_SINGLE) {

@@ -1,4 +1,5 @@
 #include "native.h"
+#include "combat.h"
 #include "domed.hpp"
 #include "game.hpp"
 #include "locomotion.hpp"
@@ -33,6 +34,12 @@ PlayerState shotBackup;
 int16_t aimBackup = 0;
 bool lookBackup = false;
 bool shotOverride = false;
+int8_t heldFireBackup=0,clickedBackup=0;
+bool shotInputSuppressed=false;
+unsigned long simulationTicks=0,logicPasses=0,actualShots=0;
+Uint32 firstLogicMs=0,lastShotMs=0;
+Uint32 minimumShotIntervalMs=0;
+int lastShotGun=-1;
 bool useHeld = false, pendingUse = false;
 int useActions = 0;
 XrVector2f lastMovement{}, firstMovement{};
@@ -436,14 +443,34 @@ extern "C" int abxr_accelerate(void *data, void *player, int32_t *x, int32_t *z,
     *z += int32_t(std::lround(lastMovement.y * scale));
     return 1;
 }
+extern "C" int abxr_aim_active(const void *data,const void *player){
+    return shotOverride && player==&static_cast<const GameState*>(data)->plr1;
+}
+extern "C" void abxr_logic_tick(void *data){
+    auto &s=*static_cast<GameState*>(data);
+    if(!logicPasses)firstLogicMs=s.current_ticks_ms;
+    ++logicPasses;simulationTicks+=s.temp_frames;
+}
+extern "C" void abxr_shot_fired(void *data,const void *player,int gun){
+    auto &s=*static_cast<GameState*>(data);if(player!=&s.plr1)return;
+    if(actualShots && gun==lastShotGun){
+        auto delta=s.current_ticks_ms-lastShotMs;
+        if(!minimumShotIntervalMs || delta<minimumShotIntervalMs)minimumShotIntervalMs=delta;
+    }
+    ++actualShots;lastShotMs=s.current_ticks_ms;lastShotGun=gun;
+}
 extern "C" void abxr_begin_shot(void *data) {
     if (!xr || paused || !xr->focused())
         return;
     auto &s = *static_cast<GameState *>(data);
     const auto t = xr->tracking();
-    if (!t.valid[1] || !t.fire)
+    heldFireBackup=s.plr1.p_fire;clickedBackup=s.plr1.p_clicked;shotInputSuppressed=true;
+    s.plr1.p_fire=0;s.plr1.p_clicked=0;
+    if (!t.valid[1] || (!t.fire && !clickedBackup))
         return;
     auto pose = t.hands[1];
+    float gripX=pose.position.x-t.anchor.x,gripY=pose.position.y-t.anchor.y,gripZ=pose.position.z-t.anchor.z;
+    if(gripX*gripX+gripY*gripY+gripZ*gripZ>2.25f)return;
     auto q = pose.orientation;
     auto muzzle = renderer.weapons.muzzle(s.plr1.gun_selected);
     // Transform the model's named muzzle socket by the same aim pose used to
@@ -457,8 +484,6 @@ extern "C" void abxr_begin_shot(void *data) {
     float yaw = angle(s) - t.anchorYaw * 3.14159265f / 180, c = cosf(yaw), v = sinf(yaw);
     float x = pose.position.x - t.anchor.x, z = pose.position.z - t.anchor.z,
           y = pose.position.y - t.anchor.y;
-    if (x * x + z * z + y * y > 2.25f)
-        return;
     float wx = s.plr1.xoff / 65536.f + (c * x + v * z) * 32,
           wz = s.plr1.zoff / 65536.f + (-v * x + c * z) * 32;
     // The longer visible barrel can cross a wall while the grip remains in
@@ -466,9 +491,11 @@ extern "C" void abxr_begin_shot(void *data) {
     float bodyY=s.plr1.yoff-crouchCompensation(s)*8192;
     if(view_path_blocked(&s.level,s.plr1.zone,s.plr1.xoff/65536.f,bodyY,s.plr1.zoff/65536.f,
                          wx,bodyY-y*8192,wz,1))return;
-    // Do not spawn shots through a wall into a neighbouring room.
-    if (level_find_zone_for_point(&s.level, int(wx), int(wz), s.plr1.zone) != s.plr1.zone)
-        return;
+    // An unobstructed barrel may extend through an open portal. Use its room
+    // for the shot; restore the body room after spawning/hitscan completes.
+    int muzzleZone=level_find_zone_for_point(&s.level,int(wx),int(wz),s.plr1.zone);
+    if(muzzleZone<0)return;
+    s.plr1.p_fire=heldFireBackup;s.plr1.p_clicked=clickedBackup;shotInputSuppressed=false;
     shotBackup = s.plr1;
     aimBackup = s.plr1_p_aim_speed;
     lookBackup = s.cfg_mouse_look;
@@ -478,7 +505,10 @@ extern "C" void abxr_begin_shot(void *data) {
     s.plr1.xoff = int32_t(wx * 65536);
     s.plr1.zoff = int32_t(wz * 65536);
     s.plr1.yoff -= int32_t((y + crouchCompensation(s)) * 8192);
-    s.plr1.angpos = int(std::atan2(-ax, -az) * 8192 / 6.283185307f) & 8191;
+    s.plr1.zone=(int16_t)muzzleZone;
+    auto room=level_get_zone_data_ptr(&s.level,s.plr1.zone);
+    if(room){s.plr1.roompt=int32_t(room-s.level.data);s.plr1.stood_in_top=level_zone_has_upper_layer(&s.level,s.plr1.zone)&&s.plr1.yoff<obj_l(room+6);}
+    s.plr1.angpos = abxr_engine_shot_yaw(ax,az);
     s.plr1.sinval = sin_lookup(s.plr1.angpos);
     s.plr1.cosval = cos_lookup(s.plr1.angpos);
     s.plr1_p_aim_speed =
@@ -486,6 +516,9 @@ extern "C" void abxr_begin_shot(void *data) {
     ++shots;
 }
 extern "C" void abxr_end_shot(void *data) {
+    if(shotInputSuppressed){
+        auto &s=*static_cast<GameState*>(data);s.plr1.p_fire=heldFireBackup;s.plr1.p_clicked=0;shotInputSuppressed=false;
+    }
     if (!shotOverride)
         return;
     auto &s = *static_cast<GameState *>(data);
@@ -493,6 +526,7 @@ extern "C" void abxr_end_shot(void *data) {
     s.plr1.xoff = shotBackup.xoff;
     s.plr1.zoff = shotBackup.zoff;
     s.plr1.yoff = shotBackup.yoff;
+    s.plr1.zone=shotBackup.zone;s.plr1.roompt=shotBackup.roompt;s.plr1.stood_in_top=shotBackup.stood_in_top;
     s.plr1.angpos = shotBackup.angpos;
     s.plr1.sinval = shotBackup.sinval;
     s.plr1.cosval = shotBackup.cosval;
@@ -547,6 +581,14 @@ extern "C" void abxr_present(void *data) {
                                   {"xr_entries", entries},
                                   {"xr_suspends", suspends},
                                   {"controller_shots", shots},
+                                  {"controller_aim_updates", shots},
+                                  {"actual_shots_fired", actualShots},
+                                  {"minimum_shot_interval_ms", minimumShotIntervalMs},
+                                  {"logic_passes", logicPasses},
+                                  {"simulation_vblanks", simulationTicks},
+                                  {"simulation_elapsed_ms", state.current_ticks_ms-firstLogicMs},
+                                  {"shot_billboards_rendered", renderer.shotBillboardsRendered},
+                                  {"explosion_billboards_rendered", renderer.explosionBillboardsRendered},
                                   {"weapon_models_loaded", renderer.weapons.loaded()},
                                   {"weapon_draws", renderer.weapons.draws},
                                   {"weapon_gpu_triangles", renderer.weapons.triangles},

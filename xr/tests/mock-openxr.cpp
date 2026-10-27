@@ -25,6 +25,7 @@ struct Space {
     int hand;
 };
 unsigned frame = 0;
+auto frameStart=std::chrono::steady_clock::now();
 int pollStage = 0, stereoFrames = 0;
 XrPosef tracked(int) { return {{0, 0, 0, 1}, {0, 1.6f, 0}}; }
 XrResult requirements(XrInstance, XrSystemId, XrGraphicsRequirementsOpenGLKHR *out) {
@@ -58,7 +59,7 @@ XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateInstanceExtensionProperties(const char
     return XR_SUCCESS;
 }
 XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreateInfo *, XrInstance *out) {
-    frame = 0;
+    frame = 0;frameStart=std::chrono::steady_clock::now();
     pollStage = 0;
     *out = reinterpret_cast<XrInstance>(1);
     return XR_SUCCESS;
@@ -188,8 +189,8 @@ XRAPI_ATTR XrResult XRAPI_CALL xrBeginSession(XrSession, const XrSessionBeginInf
 XRAPI_ATTR XrResult XRAPI_CALL xrEndSession(XrSession) { return XR_SUCCESS; }
 
 XRAPI_ATTR XrResult XRAPI_CALL xrWaitFrame(XrSession, const XrFrameWaitInfo *, XrFrameState *out) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(8));
     ++frame;
+    std::this_thread::sleep_until(frameStart+std::chrono::nanoseconds(frame*11111111LL));
     out->predictedDisplayTime = frame * 11111111LL;
     out->predictedDisplayPeriod = 11111111;
     out->shouldRender = XR_TRUE;

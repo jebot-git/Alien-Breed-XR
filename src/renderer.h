@@ -469,6 +469,8 @@ typedef struct {
     int32_t center_y;
 } XrBillboardInfo;
 int renderer_xr_billboard_info(const GameObject *object,XrBillboardInfo *out);
+int renderer_xr_shot_info(const GameObject *object,XrBillboardInfo *out);
+int renderer_xr_explosion_info(const GameState *state,int index,XrBillboardInfo *out);
 #endif
 
 #endif /* RENDERER_H */

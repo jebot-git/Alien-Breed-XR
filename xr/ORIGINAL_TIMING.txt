@@ -1,0 +1,78 @@
+Original timing and XR combat audit — 2026-10-27
+
+Source evidence (paths refer to this checkout):
+- amiga/AB3DI.s mainLoop, "Sync to copper" (~1420), uses WAITFORVERTBREQ.
+  amiga/includes/Macros.i:228 waits for INTREQR bit 5 and clears its request.
+  This synchronizes to an available vertical blank; it is not a 25fps lock.
+- AB3DI.s cop_interrupt/doSomething (~7314) increments FramesToDraw once per
+  PAL display interrupt. Controls and player simulation also run in this
+  interrupt when READCONTROLS is set. PAL time units are 20 ms / 50 Hz.
+- The main loop (~1521 single player; ~1601 master) latches FramesToDraw into
+  TempFrames, caps it at 15 and clears the accumulator. It then calls OrderZones,
+  ObjMoveAnim and DrawDisplay once. Thus an expensive rendered frame can account
+  for two, three or more VBlanks; rendering FPS and VBlank time are distinct.
+- amiga/Anims.s calls Player1Shot once per ObjMoveAnim pass. PlayerShoot.s:25
+  checks TimeToShoot before decrementing it by TempFrames. A nonzero timer always
+  exits, including when it reaches zero. Only a later pass can release a shot.
+- The pistol's original PLR1_GunData delay is 5 (AB3DI.s:2716), with hold-to-fire
+  enabled; it is an automatic weapon, despite the modern "pistol" name.
+  With one-VBlank passes, successive releases are six VBlanks apart: 8.33/s.
+  With two-VBlank passes, the sequence is fire(5), 3, 1, 0, fire: eight VBlanks
+  apart, or 6.25/s. Slower render-bound passes quantize differently again.
+  Therefore there is no single original hardware-independent fire rate.
+- AB3DI.s DrawDisplay (~3680) decreases GunFrame by TempFrames AND one additional
+  count when it remains positive. Some original visual/AI behavior is coupled
+  to game-loop passes as well as elapsed VBlanks. The modern GLB animation uses
+  the C port's gun_frame countdown; this is not a claim of cycle-exact animation
+  parity across original Amiga hardware/rendering speeds.
+
+Problems identified:
+1. OpenXR -Z forward was converted with atan2(-x,-z), while engine projectiles
+   and line-of-fire selection use (sin(angle),cos(angle)). The controller ray
+   was therefore reversed by 180 degrees. Temporary body/view pose restoration
+   hid this error visually: the gun pointed ahead while engine shots went back.
+2. SDL gamepad crosshair assist could override six-DOF controller aiming through
+   WiVRn's forwarded HID state. XR aimed shots now use their own ray exclusively.
+3. The GPU world path enumerated level.object_data only. PlayerShotData,
+   NastyShotData and the independent explosions list were omitted, so projectiles,
+   impact puffs, gibs, blast particles and explosion animation were invisible.
+4. The old controller_shots report counted pose overrides on cooldown checks,
+   not actual releases. New actual_shots_fired records only successful firing
+   events after ammo validation, alongside simulation VBlanks and elapsed ms.
+5. Hidden startup frames manufactured simulation ticks for quick prewarming.
+   XR startup now renders without inventing elapsed game time.
+
+Chosen XR pacing:
+Movement/fall and object simulation retain the port's 50Hz PAL clock. Player
+weapon release/checks use a separate two-VBlank / 25Hz reference cadence, with
+original gun delay values and original nonzero-timer exit semantics. This is
+an explicit compatibility choice approximating two-VBlank Amiga gameplay frames,
+not a newly asserted original 25fps cap. The accumulator is independent of the
+OpenXR display rate and drains elapsed weapon steps after slow frames. Pause
+resets the pending phase. Short trigger clicks are latched across the
+intervening 50Hz input snapshot and consumed once at the next weapon check. Head poses, stereo presentation and smooth turning
+continue at the headset refresh rate; weapon checks cannot manufacture ticks.
+
+Direction, effects and safety fixes:
+The engine yaw now follows the actual controller beam. Both shot pools and the
+explosion list render through cached original sprite textures and GPU quads,
+with authored frames, dimensions, delayed starts and depth testing. Dead sprite
+entries are no longer discarded by the world renderer. A blocked/invalid muzzle
+suppresses firing instead of silently falling back to body-facing shooting.
+The tracking-distance guard applies to the grip, allowing long barrels. An
+unobstructed muzzle across an open portal uses that room for the shot and then
+restores the body room; solid-wall sweeps remain read-only and block the shot.
+
+Validation:
+- Production hitscan and enemy handlers: correct four-direction rays apply
+  damage (worm 80->79), opposite rays miss, plasma travels forwards and its
+  actual projectile collision reduces worm health 80->76.
+- Production cooldowns plus weapon clock: 63 pistol releases in ten seconds
+  at 30,60,72,90,120,144 simulated display Hz, for the same 500 PAL VBlanks.
+- Offscreen GPU/OpenXR fixture: actual firing and shot-pool billboard rendering,
+  six weapon models, no manufactured simulation time; minimum measured release
+  interval approximately 160ms, subject to the fixture's display quantization.
+- Effect metadata tests check shot dimensions/centre and explosion delayed start.
+
+Tests and captures: artifacts/combat-tests.log and artifacts/native-test/.
+The physical headset test was stopped; this revision still needs headset review.

@@ -3949,6 +3949,9 @@ static void player_shoot_internal(GameState *state, PlayerState *plr,
     /* Set fire rate delay */
     plr->time_to_shoot = player_fire_delay_for_shot(state, gun_idx, gun);
 
+#ifdef AB3D_XR
+    abxr_shot_fired(state,plr,gun_idx);
+#endif
     /* Play gun sound */
     audio_play_sample(gun->gun_sample, 64);
 
@@ -3972,7 +3975,11 @@ static void player_shoot_internal(GameState *state, PlayerState *plr,
      * from the original target selection. Mouse-look projectiles only enter
      * this scan for the close-rescue case below. */
     bool gamepad_crosshair_auto_aim =
-        state->cfg_mouse_look && input_gamepad_fire_held();
+        state->cfg_mouse_look && input_gamepad_fire_held()
+#ifdef AB3D_XR
+        && !abxr_aim_active(state,plr)
+#endif
+        ;
     bool fixed_view_auto_aim = !state->cfg_mouse_look;
     bool mouse_look_instant_targeting =
         state->cfg_mouse_look && gun->fire_bullet != 0 &&

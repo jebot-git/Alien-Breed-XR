@@ -16059,4 +16059,18 @@ int renderer_xr_billboard_info(const GameObject *object,XrBillboardInfo *out){
     out->center_y=(int32_t)rd16(obj+4)*128;
     return 1;
 }
+int renderer_xr_shot_info(const GameObject *object,XrBillboardInfo *out){
+    if(!renderer_xr_billboard_info(object,out))return 0;
+    renderer_resolve_billboard_world_size_for_spill(object->raw,1,&out->width,&out->height);
+    return 1;
+}
+int renderer_xr_explosion_info(const GameState *state,int index,XrBillboardInfo *out){
+    if(!state || !out || index<0 || index>=state->num_explosions)return 0;
+    if(state->explosions[index].zone<0 || state->explosions[index].start_delay>0 || state->explosions[index].frame>=9)return 0;
+    out->vector=8;out->columns=out->rows=64;
+    renderer_get_explosion_frame_and_world_size(state,index,&out->frame,&out->width,&out->height);
+    out->width*=EXPLOSION_SIZE_CORRECTION;out->height*=EXPLOSION_SIZE_CORRECTION;
+    out->center_y=state->explosions[index].y_floor;
+    return 1;
+}
 #endif

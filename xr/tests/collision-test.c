@@ -58,6 +58,17 @@ int main(void) {
     word(flyer.raw+4,-128);word(flyer.raw+8,-1);
     assert(renderer_xr_billboard_info(&flyer,&info));
     assert(-info.center_y/8192.0-info.height/64.0>1); // flying stays above floor
+    // Shot-pool sprites and independent explosion records retain authored
+    // centre heights, frame selection, dimensions and delayed-start behavior.
+    GameObject impact={0};XrBillboardInfo effect={0};impact.obj.number=OBJ_NBR_BULLET;
+    impact.raw[6]=20;impact.raw[7]=30;word(impact.raw+4,-60);word(impact.raw+8,2);
+    impact.raw[14]=12;impact.raw[15]=15;
+    assert(renderer_xr_shot_info(&impact,&effect));assert(effect.center_y==-60*128 && effect.width==20 && effect.height==30);
+    assert(effect.columns==24 && effect.rows==30);
+    state.num_explosions=1;state.explosions[0].zone=0;state.explosions[0].frame=0;
+    state.explosions[0].y_floor=-4096;state.explosions[0].size_scale=100;
+    assert(renderer_xr_explosion_info(&state,0,&effect));assert(effect.vector==8 && effect.center_y==-4096 && effect.width>0);
+    state.explosions[0].start_delay=1;assert(!renderer_xr_explosion_info(&state,0,&effect));
     /* Hundreds of blocked updates and fractional jitter cannot play a step. */
     PlayerState *p=&state.plr1;p->roompt=0;p->zone=0;
     state.plr1_clumptime=4000;

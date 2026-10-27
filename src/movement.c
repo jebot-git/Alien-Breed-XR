@@ -862,6 +862,84 @@ void move_context_init(MoveContext* ctx)
     ctx->wall_length = 0;
 }
 
+#ifdef AB3D_XR
+static const uint8_t *view_room(const LevelState *level, int zone)
+{
+    if (!level->zone_adds || zone<0 || zone>=level_zone_slot_count(level)) return NULL;
+    return level->data+read_be32(level->zone_adds+zone*4);
+}
+
+static bool view_height_clear(const LevelState *level, int zone, double y, double radius)
+{
+    MoveContext ctx;
+    move_context_init(&ctx);
+    ctx.thing_height = (int32_t)ceil(radius * 512);
+    ctx.step_up_val = 1;
+    ctx.step_down_val = INT32_MAX;
+    const uint8_t *room = view_room(level, zone);
+    return transition_height_ok_zone(&ctx, (int32_t)floor(y - radius * 256),
+                                     level, zone, room, NULL);
+}
+
+bool view_path_blocked(const LevelState *level, int zone,
+                      double x0, double y0, double z0,
+                      double x1, double y1, double z1, double radius)
+{
+    if (!level || !level->data || !level->floor_lines || !isfinite(x0+y0+z0+x1+y1+z1) ||
+        radius <= 0 || fabs(x1-x0)+fabs(z1-z0) > 320 || fabs(y1-y0) > 81920)
+        return true;
+    const double dx=x1-x0, dz=z1-z0, dy=y1-y0;
+    double start=0;
+    for (int visit=0; visit<128; ++visit) {
+        const uint8_t *room=view_room(level, zone);
+        if (!room) return true;
+        const uint8_t *list=room+read_be16(room+ZONE_EXIT_LIST);
+        double end=1;
+        int next=-1;
+        /* Find the first boundary crossed, then inspect only this room's
+         * portion of the sweep. This avoids walls beyond an open doorway. */
+        for (int i=0;i<128;++i) {
+            int entry=read_be16(list+i*2);
+            if (entry == -2) break;
+            if (entry<0 || entry>=level->num_floor_lines) continue;
+            const uint8_t *line=level->floor_lines+entry*FLINE_SIZE;
+            double ax=read_be16(line),az=read_be16(line+2);
+            double wx=read_be16(line+4),wz=read_be16(line+6);
+            double den=dx*wz-dz*wx;
+            if (fabs(den)<1e-9) continue;
+            double t=((ax-x0)*wz-(az-z0)*wx)/den;
+            double u=((ax-x0)*dz-(az-z0)*dx)/den;
+            if (t>start+1e-7 && t<end && u>=0 && u<=1) {
+                end=t;
+                next=level_connect_to_zone_index(level,read_be16(line+FLINE_CONNECT));
+            }
+        }
+        if (!view_height_clear(level,zone,y0+dy*start,radius) ||
+            !view_height_clear(level,zone,y0+dy*end,radius)) return true;
+        double sx=x0+dx*start,sz=z0+dz*start,ex=x0+dx*end,ez=z0+dz*end;
+        for (int i=0;i<128;++i) {
+            int entry=read_be16(list+i*2);
+            if (entry == -2) break;
+            if (entry<0 || entry>=level->num_floor_lines) continue;
+            const uint8_t *line=level->floor_lines+entry*FLINE_SIZE;
+            double ax=read_be16(line),az=read_be16(line+2);
+            double bx=ax+read_be16(line+4),bz=az+read_be16(line+6);
+            if (segment_segment_distance(sx,sz,ex,ez,ax,az,bx,bz)>=radius) continue;
+            int target=level_connect_to_zone_index(level,read_be16(line+FLINE_CONNECT));
+            /* Check the whole nearby path interval at portal height. Live door
+             * and lift records are shared with normal collision. */
+            if (target<0 || !view_height_clear(level,target,y0+dy*start,radius) ||
+                !view_height_clear(level,target,y0+dy*end,radius)) return true;
+        }
+        if (end>=1) return false;
+        if (next<0) return true;
+        zone=next;
+        start=end;
+    }
+    return true;
+}
+#endif
+
 /* -----------------------------------------------------------------------
  * player_fall - Gravity physics
  * ----------------------------------------------------------------------- */

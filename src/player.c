@@ -24,6 +24,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <math.h>
 #include <time.h>
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
@@ -445,6 +446,19 @@ static void player_advance_clumptime(PlayerState *plr, GameState *state, int16_t
         player_play_footstep(plr, state);
     }
 }
+
+#ifdef AB3D_XR
+static void player_clump_after_collision(PlayerState *plr, GameState *state)
+{
+    /* Count actual travel, including strafing. Ignore blocked fractional
+     * movement and teleport-sized displacements. One step per world metre. */
+    int dx=(plr->xoff>>16)-(plr->oldxoff>>16);
+    int dz=(plr->zoff>>16)-(plr->oldzoff>>16);
+    int distance=(int)sqrt((double)dx*dx+(double)dz*dz);
+    if(distance>0 && distance<128)
+        player_advance_clumptime(plr,state,(int16_t)(distance*128));
+}
+#endif
 
 static int16_t zone_from_room_or_fallback(LevelState *level, const uint8_t *room, int16_t fallback)
 {
@@ -973,6 +987,9 @@ static void player_keyboard_control(PlayerState *plr, const uint8_t *key_map,
     plr->bobble = (plr->bobble + bob_delta) & BOBBLE_MASK;
 
     /* ---- Clump (footstep sound trigger) ---- */
+#ifdef AB3D_XR
+    if(!abxr_active_controls(state,plr))
+#endif
     player_advance_clumptime(plr, state, bob_delta);
 
     /* ---- Calculate movement vector ---- */
@@ -1080,6 +1097,9 @@ static void player_mouse_control(PlayerState *plr, const uint8_t *key_map,
 
     /* Bobble */
     plr->bobble = (plr->bobble + move_mag) & BOBBLE_MASK;
+#ifdef AB3D_XR
+    if(!abxr_active_controls(state,plr))
+#endif
     player_advance_clumptime(plr, state, move_mag);
 
     /* Fire from mouse button */
@@ -1475,6 +1495,9 @@ static void player_mouse_kbd_control(PlayerState *plr, const uint8_t *key_map,
     /* ---- Bobble ---- */
     int16_t bob_delta = player_word_asl(fwd, 6);
     plr->bobble = (plr->bobble + bob_delta) & BOBBLE_MASK;
+#ifdef AB3D_XR
+    if(!abxr_active_controls(state,plr))
+#endif
     player_advance_clumptime(plr, state, bob_delta);
 
     /* ---- Movement vector ---- */
@@ -1611,6 +1634,9 @@ static void player_full_control(PlayerState *plr, GameState *state, int plr_num)
         bob_val *= 2;
     }
 
+#ifdef AB3D_XR
+    if(abxr_active_controls(state,plr))bob_val=0; // physical head motion supplies VR bob
+#endif
     int32_t yoff = plr->p_yoff;
     yoff += bob_val;
     plr->yoff = yoff;
@@ -1870,6 +1896,10 @@ static void player_full_control(PlayerState *plr, GameState *state, int plr_num)
     plr->zoff = ((int32_t)ctx.newz << 16) | (plr->zoff & 0x0000FFFF);
     plr->s_xoff = plr->xoff;
     plr->s_zoff = plr->zoff;
+
+#ifdef AB3D_XR
+    if(abxr_active_controls(state,plr))player_clump_after_collision(plr,state);
+#endif
 
     /* 7. Update target Y from room floor height
      * AND set up PointsToRotatePtr / ListOfGraphRooms for this zone.

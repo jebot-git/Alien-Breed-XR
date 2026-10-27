@@ -87,6 +87,20 @@ The simple-controller profile supports right select to fire, left select to use,
 and Menu; it has no stick locomotion or Y/B weapon buttons. Controller pointers
 remain simple 3D lines.
 
+Sprite quads use the original centre height and class-specific dimensions, so
+ground enemies meet their authored floor while flying enemies retain their
+height. XR footsteps advance from accepted movement after collision, including
+strafing; pushing a stationary player against a wall produces no footsteps.
+Synthetic camera bob is disabled in XR and analog acceleration matches the
+original engine's sine-table amplitude.
+
+Both predicted eye positions are checked against the collision rooms and live
+door/lift heights. Approaching a wall fades the world in both eyes; at 12.5 cm
+clearance it becomes fully black, before the 5 cm near plane can expose the
+other side. Head tracking and the HUD remain active with a move-back prompt.
+Backing away restores the view. These checks do not activate wall switches,
+produce collision sounds, or displace the physical head pose.
+
 Save/Load uses the original full game/level-state format in
 `$XDG_STATE_HOME/alien-breed-xr/savegame.bin` (default
 `~/.local/state/alien-breed-xr/savegame.bin`). Save writes a temporary file and
@@ -148,6 +162,12 @@ renderer is intentional isolation and is not GPU performance evidence.
 Results and captures are under `artifacts/native-test/` and
 `artifacts/domed-test/`. The build remains in this workspace; no active desktop
 or display-manager session is restarted.
+
+`xr-collision-grounding` exercises solid walls, stationary eye clearance, open
+portals, live door closure, floor/ceiling intrusion, grounded and flying sprite
+metadata, and accepted-distance footstep timing. The GPU fixture also checks
+head obstruction and recovery without restarting the XR session. The latest
+grounding and collision changes still need physical headset verification.
 
 See [SOURCE_NOTICES.md](SOURCE_NOTICES.md) for provenance.
 

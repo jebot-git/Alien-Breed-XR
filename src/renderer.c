@@ -16031,3 +16031,32 @@ int renderer_xr_decode_sprite(int vect, int frame, int width, int height, uint8_
     return 1;
 }
 #endif
+
+#ifdef AB3D_XR
+int renderer_xr_billboard_info(const GameObject *object,XrBillboardInfo *out){
+    if(!object||!out)return 0;
+    const uint8_t *obj=object->raw;
+    int type=(int8_t)obj[16],dead=0;
+    int vector=rd16(obj+8),frame=rd16(obj+10);
+    if(type==OBJ_NBR_DEAD&&renderer_dead_object_is_runtime_corpse(obj)){
+        type=(int8_t)obj[19];if(type<0||type>OBJ_NBR_GAS_PIPE)return 0;
+        dead=1;vector=-1;frame=rd16(obj+8);
+    }
+    int fallback=vector<0||vector>=MAX_SPRITE_TYPES||!g_renderer.sprite_wad[vector]||!g_renderer.sprite_ptr[vector];
+    if(!fallback&&vector==0&&type!=OBJ_NBR_ALIEN&&type>=OBJ_NBR_ROBOT&&type<=OBJ_NBR_FLAME_MARINE)fallback=1;
+    if(fallback){vector=renderer_fallback_vect_for_obj_number(type);if(!dead)frame=0;}
+    if(vector<0||vector>=MAX_SPRITE_TYPES)return 0;
+    int cols=obj[14]?obj[14]:32,rows=obj[15]?obj[15]:32;
+    switch(type){
+    case OBJ_NBR_WORM:cols=45;rows=50;break;
+    case OBJ_NBR_HUGE_RED_THING:cols=63;rows=63;break;
+    case OBJ_NBR_SMALL_RED_THING:cols=64;rows=64;break;
+    case OBJ_NBR_EYEBALL:cols=15;rows=31;break;
+    }
+    if(vector==11){if(cols<64)cols=64;if(rows<64)rows=64;}
+    renderer_resolve_billboard_world_size_for_spill(obj,0,&out->width,&out->height);
+    out->vector=vector;out->frame=frame;out->columns=cols*2;out->rows=rows*2;
+    out->center_y=(int32_t)rd16(obj+4)*128;
+    return 1;
+}
+#endif

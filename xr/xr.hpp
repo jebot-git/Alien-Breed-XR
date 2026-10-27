@@ -32,6 +32,7 @@ class XR {
     void recenter();
     void setVisible(bool visible);
     bool focused() const;
+    float wallFade() const;
     std::string description() const;
 };
 } // namespace tempest

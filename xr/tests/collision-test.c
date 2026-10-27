@@ -1,0 +1,74 @@
+/* Exercise production collision, sprite metadata and footstep bookkeeping. */
+#include "../../src/player.c"
+#include <assert.h>
+static int sounds;
+void audio_play_sample(int sample, int volume) { (void)sample; (void)volume; ++sounds; }
+static void word(uint8_t *p,int n) { p[0]=(uint16_t)n>>8;p[1]=n; }
+static void longword(uint8_t *p,int n) { word(p,(uint32_t)n>>16);word(p+2,n); }
+static uint8_t data[256],adds[8],lines[48];
+static void room(int id,int offset,int line) {
+    longword(adds+id*4,offset);uint8_t *p=data+offset;
+    word(p,id);longword(p+2,0);longword(p+6,-32768);
+    word(p+32,48);word(p+48,line);word(p+50,-1);word(p+52,-2);
+}
+static void line(int id,int x,int target) {
+    uint8_t *p=lines+id*16;
+    word(p,x);word(p+2,-64);word(p+4,0);word(p+6,128);
+    word(p+8,target);word(p+10,128);
+}
+int main(void) {
+    static GameState state;
+    LevelState *level=&state.level;
+    level->data=data;level->data_byte_count=sizeof(data);level->zone_adds=adds;
+    level->floor_lines=lines;level->num_floor_lines=3;
+    level->num_zones=level->num_zone_slots=2;
+    room(0,0,0);room(1,64,1);
+    line(0,32,-1);line(1,64,-1);line(2,32,0);
+    assert(!view_path_blocked(level,0,0,-12288,0,20,-12288,0,4));
+    assert(view_path_blocked(level,0,0,-12288,0,30,-12288,0,4));
+    assert(view_path_blocked(level,0,0,-12288,0,80,-12288,0,4));
+    /* A stationary eye sphere must also detect a nearby wall. */
+    assert(view_path_blocked(level,0,30,-12288,0,30,-12288,0,4));
+    /* Portal traversal, then collision with the wall in the next room. */
+    word(lines+8,1);word(data+64+50,2);word(data+64+52,-1);word(data+64+54,-2);
+    assert(!view_path_blocked(level,0,0,-12288,0,40,-12288,0,4));
+    assert(view_path_blocked(level,0,0,-12288,0,80,-12288,0,4));
+    /* Live closed door and ceiling/floor intrusion. */
+    longword(data+64+6,0);
+    assert(view_path_blocked(level,0,0,-12288,0,40,-12288,0,4));
+    longword(data+64+6,-32768);
+    assert(view_path_blocked(level,0,0,-12288,0,0,-32000,0,4));
+    assert(view_path_blocked(level,0,0,-12288,0,0,-500,0,4));
+    assert(!view_path_blocked(level,0,0,-12288,0,0,-16000,0,4));
+    /* Query must not set the engine's wall-use/touch bits. */
+    assert(obj_w(lines+14)==0 && obj_w(lines+30)==0);
+    const int types[]={OBJ_NBR_ALIEN,OBJ_NBR_ROBOT,OBJ_NBR_MARINE,OBJ_NBR_WORM};
+    const int heights[]={40,120,64,100};
+    for(int i=0;i<4;++i) {
+        GameObject obj={0};XrBillboardInfo info={0};
+        obj.raw[16]=types[i];obj.raw[6]=obj.raw[7]=heights[i];
+        word(obj.raw+4,-heights[i]);word(obj.raw+8,-1);
+        assert(renderer_xr_billboard_info(&obj,&info));
+        /* Centre elevation equals half full quad height at authored floor 0. */
+        assert(fabs(-info.center_y/8192.0-info.height/64.0)<.0001);
+        assert(info.width>0 && info.columns>0 && info.rows>0);
+    }
+    GameObject flyer={0};XrBillboardInfo info={0};
+    flyer.raw[16]=OBJ_NBR_FLYING_NASTY;flyer.raw[6]=flyer.raw[7]=32;
+    word(flyer.raw+4,-128);word(flyer.raw+8,-1);
+    assert(renderer_xr_billboard_info(&flyer,&info));
+    assert(-info.center_y/8192.0-info.height/64.0>1); // flying stays above floor
+    /* Hundreds of blocked updates and fractional jitter cannot play a step. */
+    PlayerState *p=&state.plr1;p->roompt=0;p->zone=0;
+    state.plr1_clumptime=4000;
+    for(int i=0;i<500;++i) {
+        p->xoff=i%65536;p->oldxoff=0;
+        player_clump_after_collision(p,&state);
+    }
+    assert(sounds==0 && state.plr1_clumptime==4000);
+    p->xoff=1<<16;player_clump_after_collision(p,&state);
+    assert(sounds==1); // accepted movement crosses the step threshold
+    state.plr1_clumptime=0;sounds=0;p->xoff=0;p->zoff=32<<16;
+    player_clump_after_collision(p,&state);assert(sounds==1); // strafing counts
+    puts("PASS grounded/flying sprites, blocked footsteps, eye sweep, portals, live doors and ceilings");
+}

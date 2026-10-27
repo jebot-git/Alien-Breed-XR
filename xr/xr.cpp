@@ -33,6 +33,7 @@ struct XR::Impl {
     XrSystemId system = XR_NULL_SYSTEM_ID;
     bool running = false, hasAnchor = false, quit = false, isFocused = false, visible = true;
     XrEnvironmentBlendMode blend = XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+    float wallFade = 0;
     struct Eye {
         XrSwapchain chain = XR_NULL_HANDLE;
         int width = 0, height = 0;
@@ -494,6 +495,31 @@ bool XR::frame(Renderer &renderer, const Game &game) {
         x.tracking.headYawRadians = horizontalHeadYaw(views[0].pose.orientation, x.tracking.headYawRadians);
         x.tracking.anchor = x.anchor;
         x.tracking.anchorYaw = x.yaw;
+        Game viewGame = game;
+        viewGame.wallFade = 0;
+        const auto &player = game.state->plr1;
+        float yaw = player.angpos * (2.f * 3.14159265f / 8192) - x.yaw * (3.14159265f / 180);
+        float c = std::cos(yaw), s = std::sin(yaw);
+        float bodyX = player.xoff / 65536.f, bodyZ = player.zoff / 65536.f;
+        float bodyY = player.yoff - game.crouchCompensation * 8192;
+        // Use both predicted eye positions, including IPD. Keep the real poses
+        // unchanged; fade the scene before the near plane can cross a wall.
+        for (int i=0;i<2;++i) {
+            float dx = views[i].pose.position.x - x.anchor.x;
+            float dz = views[i].pose.position.z - x.anchor.z;
+            float ex = bodyX + (c*dx+s*dz)*32;
+            float ez = bodyZ + (-s*dx+c*dz)*32;
+            float ey = bodyY - (views[i].pose.position.y-x.anchor.y)*8192;
+            auto blocked = [&](float radius) {
+                return view_path_blocked(&game.state->level,player.zone,
+                                         bodyX,bodyY,bodyZ,ex,ey,ez,radius);
+            };
+            // Full blackout at 12.5cm, outside the 5cm near clipping plane.
+            if (blocked(4)) viewGame.wallFade=1;
+            else if (blocked(6)) viewGame.wallFade=std::max(viewGame.wallFade,.65f);
+            else if (blocked(8)) viewGame.wallFade=std::max(viewGame.wallFade,.3f);
+        }
+        x.wallFade = viewGame.wallFade;
         for (int i = 0; i < 2; i++) {
             auto &e = x.eyes[i];
             uint32_t index = 0;
@@ -560,6 +586,25 @@ bool XR::frame(Renderer &renderer, const Game &game) {
             glTranslatef(x.anchor.x, x.anchor.y, x.anchor.z);
             glRotatef(x.yaw, 0, 1, 0);
             renderer.world(game, true);
+            if (viewGame.wallFade>0) {
+                glPushAttrib(GL_ALL_ATTRIB_BITS);
+                glDisable(GL_DEPTH_TEST);
+                glDisable(GL_ALPHA_TEST);
+                glDisable(GL_TEXTURE_2D);
+                glEnable(GL_BLEND);
+                glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+                glMatrixMode(GL_PROJECTION);
+                glPushMatrix(); glLoadIdentity();
+                glMatrixMode(GL_MODELVIEW);
+                glLoadIdentity();
+                glColor4f(0,0,0,viewGame.wallFade);
+                glBegin(GL_QUADS);
+                glVertex2f(-1,-1); glVertex2f(1,-1); glVertex2f(1,1); glVertex2f(-1,1);
+                glEnd();
+                glMatrixMode(GL_PROJECTION); glPopMatrix();
+                glMatrixMode(GL_MODELVIEW);
+                glPopAttrib();
+            }
             // Head-locked HUD/menu: retain the real eye-to-head offset so the
             // panel has stable stereo depth rather than duplicated screen text.
             glLoadIdentity();
@@ -585,7 +630,7 @@ bool XR::frame(Renderer &renderer, const Game &game) {
                                   0,
                                   1};
             glMultMatrixf(rotation);
-            renderer.finishFrame(game, i, 0, 0, e.width, e.height);
+            renderer.finishFrame(viewGame, i, 0, 0, e.width, e.height);
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             glFlush();
             XrSwapchainImageReleaseInfo release{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
@@ -618,6 +663,7 @@ const Tracking &XR::tracking() const { return p->tracking; }
 void XR::setVisible(bool visible) { p->visible = visible; }
 void XR::recenter() { p->hasAnchor = false; }
 bool XR::focused() const { return p->isFocused; }
+float XR::wallFade() const { return p->wallFade; }
 std::string XR::description() const { return p->runtime; }
 } // namespace tempest
 #else
@@ -632,6 +678,7 @@ bool XR::frame(Renderer &, const Game &) { return false; }
 void XR::setVisible(bool) {}
 void XR::recenter() {}
 bool XR::focused() const { return false; }
+float XR::wallFade() const { return 0; }
 std::string XR::description() const { return "unavailable"; }
 } // namespace tempest
 #endif

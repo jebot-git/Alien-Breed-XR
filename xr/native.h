@@ -8,8 +8,9 @@ int abxr_level(void);
 int abxr_quitting(void);
 int abxr_status(void);
 int abxr_poll(void *state);
-int abxr_accelerate(void *state, void *player, int32_t *x, int32_t *z, int speed, int running,
+int abxr_accelerate(void *state, void *player, int32_t *x, int32_t *z, int ticks, int height,
                     int run_percent);
+int abxr_active_controls(const void *state,const void *player);
 int abxr_crouch_height(const void *state, const void *player);
 int abxr_weapon_steps(const void *state, const void *player);
 void abxr_level_loaded(void *state);

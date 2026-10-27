@@ -463,4 +463,12 @@ int renderer_get_height(void);
 int renderer_get_stride(void);
 void renderer_set_present_size(int w, int h);
 
+#ifdef AB3D_XR
+typedef struct {
+    int vector,frame,columns,rows,width,height;
+    int32_t center_y;
+} XrBillboardInfo;
+int renderer_xr_billboard_info(const GameObject *object,XrBillboardInfo *out);
+#endif
+
 #endif /* RENDERER_H */

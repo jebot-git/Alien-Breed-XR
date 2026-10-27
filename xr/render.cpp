@@ -232,11 +232,14 @@ void Renderer::world(const Game &game, bool immersive) {
             if (id < 0 || id >= level.num_object_points)
                 continue;
             auto pos = level.object_points + id * 8;
-            float x = w(pos) / 32.f, z = w(pos + 4) / 32.f, y = -w(obj->raw + 4) / 64.f;
-            int vect = w(obj->raw + 8), frame = w(obj->raw + 10);
-            int cols = obj->raw[14] ? obj->raw[14] * 2 : 64, rows = obj->raw[15] ? obj->raw[15] * 2 : 64;
-            auto tex = sprite(vect, frame, cols, rows);
-            float half = std::max(4, int(obj->raw[6])) / 64.f, height = std::max(8, int(obj->raw[7])) / 32.f;
+            XrBillboardInfo info{};
+            if(!renderer_xr_billboard_info(obj,&info))continue;
+            float x = w(pos) / 32.f, z = w(pos + 4) / 32.f;
+            float half=info.width/64.f,height=info.height/32.f;
+            // ObjDraw3's authored Y is the centre, not the feet. Preserve the
+            // centre of flying objects too; do not force every sprite to a floor.
+            float y=-info.center_y/8192.f-height*.5f;
+            auto tex = sprite(info.vector,info.frame,info.columns,info.rows);
             float yaw = std::atan2(p.xoff / 65536.f / 32 - x, p.zoff / 65536.f / 32 - z),
                   rx = std::cos(yaw) * half, rz = -std::sin(yaw) * half;
             if (tex) {

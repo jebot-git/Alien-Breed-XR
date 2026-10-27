@@ -207,6 +207,8 @@ XRAPI_ATTR XrResult XRAPI_CALL xrLocateViews(XrSession, const XrViewLocateInfo *
     for (int i = 0; i < 2; ++i) {
         views[i].pose = tracked(-1);
         views[i].pose.position.x = (i ? .032f : -.032f) + .04f * std::sin(frame * .05f);
+        if (std::getenv("ABXR_TEST_WALL") && frame>=20 && frame<=30)
+            views[i].pose.position.x += 6;
         views[i].pose.position.y += .02f * std::sin(frame * .03f);
         if (!std::getenv("ABXR_TEST_MENU") && frame >= 76 && frame <= 94)
             views[i].pose.position.y -= .45f;

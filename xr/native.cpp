@@ -45,6 +45,7 @@ float turnFraction = 0;
 Uint64 lastControlTime = 0;
 float physicalTarget = 1.5f, minPhysicalTarget = 1.5f, minEngineHeight = 1.5f;
 int previousGun = -1, weaponChanges = 0;
+int wallBlockedFrames = 0;
 float crouchCompensation(const GameState &state) {
     return xr ? crouchViewCompensation(state.plr1.height / 8192.f, physicalTarget) : 0;
 }
@@ -378,6 +379,10 @@ extern "C" int abxr_poll(void *data) {
     }
     return 0;
 }
+extern "C" int abxr_active_controls(const void *data,const void *player){
+    const auto &state=*static_cast<const GameState*>(data);
+    return xr&&!paused&&!overlay.menu&&xr->focused()&&player==&state.plr1;
+}
 extern "C" int abxr_crouch_height(const void *data, const void *player) {
     auto &state = *static_cast<const GameState *>(data);
     if (!xr || paused || player != &state.plr1 || !xr->focused() || !xr->tracking().headValid)
@@ -426,7 +431,7 @@ extern "C" int abxr_accelerate(void *data, void *player, int32_t *x, int32_t *z,
     // and collision; replace only the direction with planar head-relative input.
     minEngineHeight = std::min(minEngineHeight, height / 8192.f);
     float scale =
-        32767.f * (3.f * ticks) * std::clamp(height / float(PLAYER_HEIGHT), .5f, 1.f) * runPercent / 100.f;
+        16384.f * (3.f * ticks) * std::clamp(height / float(PLAYER_HEIGHT), .5f, 1.f) * runPercent / 100.f;
     *x += int32_t(std::lround(lastMovement.x * scale));
     *z += int32_t(std::lround(lastMovement.y * scale));
     return 1;
@@ -508,6 +513,7 @@ extern "C" void abxr_present(void *data) {
             if (!xr->frame(renderer, sceneGame(state))) {
                 suspend();
             }
+            else if(xr->wallFade()>=1) ++wallBlockedFrames;
         }
         renderer.desktop(sceneGame(state), w, h);
         if (previousGun >= 0 && previousGun != state.plr1.gun_selected)
@@ -528,6 +534,8 @@ extern "C" void abxr_present(void *data) {
                                   {"xr_entries", entries},
                                   {"xr_suspends", suspends},
                                   {"controller_shots", shots},
+                                  {"wall_fade", xr ? xr->wallFade() : 0},
+                                  {"wall_blocked_frames", wallBlockedFrames},
                                   {"use_actions", useActions},
                                   {"weapon_previous_actions", previousActions},
                                   {"weapon_next_actions", nextActions},

@@ -69,6 +69,14 @@ void move_object(MoveContext *ctx, LevelState *level);
  */
 void move_object_substepped(MoveContext *ctx, LevelState *level);
 
+/* Read-only swept eye sphere. X/Z and radius use original horizontal world
+ * units; Y uses original vertical fixed point (256 per horizontal unit).
+ * Traverses open portals using live floor/roof heights; never tags wall use
+ * flags, moves the player, or triggers sounds. */
+bool view_path_blocked(const LevelState *level, int zone,
+                      double x0, double y0, double z0,
+                      double x1, double y1, double z1, double radius);
+
 /*
  * Collision - Check object-to-object collision at position (newx, newz).
  *

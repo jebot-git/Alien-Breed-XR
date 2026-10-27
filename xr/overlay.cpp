@@ -141,6 +141,8 @@ void Renderer::finishFrame(const Game &game, int, int, int, int, int) {
         }
     }
     glColor4f(1, 1, 1, 1);
+    if (game.wallFade>0)
+        text("MOVE BACK FROM WALL", -.4f, .12f, .055f);
     if (game.overlay && !game.overlay->message.empty())
         text(game.overlay->message, -.8f, -.74f, .03f);
     if (game.overlay && game.overlay->menu) {

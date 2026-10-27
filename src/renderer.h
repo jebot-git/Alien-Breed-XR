@@ -465,6 +465,7 @@ void renderer_set_present_size(int w, int h);
 
 #ifdef AB3D_XR
 int renderer_xr_decode_sprite(int vector,int frame,int width,int height,uint8_t *rgba);
+int renderer_xr_decode_sprite_indices(int vector,int frame,int width,int height,uint8_t *rgba);
 typedef struct {
     int vector,frame,columns,rows,width,height;
     int32_t center_y;

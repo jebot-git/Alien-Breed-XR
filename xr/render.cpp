@@ -13,10 +13,11 @@ namespace {
 int w(const uint8_t *p) { return obj_w(p); }
 int l(const uint8_t *p) { return obj_l(p); }
 void point(const LevelState &level, int id, float y, float u = 0, float v = 0) {
-    if (id < 0 || id >= w(level.data + 14))
+    if (id < 0 || id >= level_point_count(&level))
         throw std::runtime_error("Invalid GPU mesh point");
     auto p = level.points + id * 4;
     glTexCoord2f(u, v);
+    glMultiTexCoord1f(GL_TEXTURE1, id);
     glVertex3f(w(p) / 32.f, y, w(p + 2) / 32.f);
 }
 bool roomSurfaceContains(const LevelState &level, int zone, float x, float z) {
@@ -39,7 +40,7 @@ bool roomSurfaceContains(const LevelState &level, int zone, float x, float z) {
                 bool inside = false, valid = true;
                 for (int i = 0, j = count - 1; i < count; j = i++) {
                     int a = w(ptr + 4 + i * 2), b = w(ptr + 4 + j * 2);
-                    if (a < 0 || b < 0 || a >= w(level.data+14) || b >= w(level.data+14)) { valid = false; break; }
+                    if (a < 0 || b < 0 || a >= level_point_count(&level) || b >= level_point_count(&level)) { valid = false; break; }
                     auto pa = level.points + a * 4, pb = level.points + b * 4;
                     float ax = w(pa), az = w(pa+2), bx = w(pb), bz = w(pb+2);
                     if ((az > z) != (bz > z) && x < (bx - ax) * (z - az) / (bz - az) + ax)
@@ -70,7 +71,7 @@ unsigned Renderer::texture(int id, int rows) {
         width = int(g_renderer.wall_pixel_bytes[id] / (height * 2)) * 3;
     } else if (id < 0) {
         pixels = g_renderer.floor_tile;
-        palette = g_renderer.floor_pal ? g_renderer.floor_pal + 7 * 512 : nullptr;
+        palette = g_renderer.floor_pal;
         if (size_t(-id - 1) + 64764 >= g_renderer.floor_pixel_bytes)
             return 0;
         width = height = 64;
@@ -86,11 +87,9 @@ unsigned Renderer::texture(int id, int rows) {
                                      ((x % 3) * 5)) &
                                     31)
                                  : pixels[-id - 1 + ((y << 8) | x) * 4];
-            unsigned color = static_cast<unsigned short>(w(palette + index * 2));
             int at = (y * width + x) * 4;
-            rgba[at] = ((color >> 8) & 15) * 17;
-            rgba[at + 1] = ((color >> 4) & 15) * 17;
-            rgba[at + 2] = (color & 15) * 17;
+            rgba[at] = index;
+            rgba[at + 1] = rgba[at + 2] = 0;
             rgba[at + 3] = 255;
         }
     unsigned tex;
@@ -103,7 +102,7 @@ unsigned Renderer::texture(int id, int rows) {
     glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -118,7 +117,7 @@ unsigned Renderer::sprite(int vect, int frame, int width, int height) {
     if (sprites.count(key))
         return sprites[key];
     std::vector<uint8_t> rgba(width * height * 4);
-    if (!renderer_xr_decode_sprite(vect, frame, width, height, rgba.data()))
+    if (!renderer_xr_decode_sprite_indices(vect, frame, width, height, rgba.data()))
         return sprites[key]=0;
     unsigned tex;
     glGenTextures(1, &tex);
@@ -130,7 +129,7 @@ unsigned Renderer::sprite(int vect, int frame, int width, int height) {
     glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     return sprites[key] = tex;
 }
@@ -145,9 +144,8 @@ unsigned Renderer::wallTexture(int id,int rows,int shift,int mask,int offset,boo
         int column=x+offset;size_t byte=(size_t)(std::max(0,column)/3)*stride*2+y*2;
         if(column<0 || byte+2>g_renderer.wall_pixel_bytes[id])continue;
         int index=(uint16_t(w(g_renderer.walltiles[id]+byte))>>((column%3)*5))&31;
-        unsigned color=uint16_t(w(g_renderer.wall_palettes[id]+index*2));
         auto p=pixels.data()+(y*width+x)*4;
-        p[0]=((color>>8)&15)*17;p[1]=((color>>4)&15)*17;p[2]=(color&15)*17;
+        p[0]=index;p[1]=p[2]=0;
         p[3]=(holes && !index)?0:255;
     }
     unsigned tex;glGenTextures(1,&tex);glBindTexture(GL_TEXTURE_2D,tex);
@@ -159,6 +157,7 @@ unsigned Renderer::wallTexture(int id,int rows,int shift,int mask,int offset,boo
     return wallTextures[key]=tex;
 }
 void Renderer::clear() {
+    lighting.clear();
     weapons.clear();
     for (auto [key, list] : polygons)
         glDeleteLists(list, 1);
@@ -206,6 +205,7 @@ void Renderer::world(const Game &game, bool immersive) {
         polygons.clear();
         cachedLevel = state.current_level;
     }
+    lighting.updatePoints(level);
     triangles = 0;
     std::set<const uint8_t *> drawnSwitches;
     for (int zone = 0; zone < level_zone_slot_count(&level); ++zone)
@@ -220,8 +220,7 @@ void Renderer::world(const Game &game, bool immersive) {
                 continue;
             const uint8_t *ptr = level.graphics + offset + 2,
                           *end = level.graphics + level.graphics_byte_count;
-            float bright = std::clamp(1.f - level_get_zone_brightness(&level, zone, upper) / 32.f, .2f, 1.f);
-            glColor3f(bright, bright, bright);
+            int zoneBrightness = level_get_zone_brightness(&level, zone, upper);
             for (int entries = 0; entries < 1000 && ptr + 2 <= end; ++entries) {
                 int type = w(ptr);
                 ptr += 2;
@@ -232,9 +231,9 @@ void Renderer::world(const Game &game, bool immersive) {
                         break;
                     int a = w(ptr), b = w(ptr + 2), id = w(ptr + 12),
                         rows = std::clamp(int(ptr[14]) + 1, 1, 256);
-                    // Some authored streams contain sentinel/unused wall points;
-                    // the original renderer clips their unrotated zero entries.
-                    if (a < 0 || b < 0 || a >= w(level.data + 14) || b >= w(level.data + 14)) {
+                    // The final authored point is valid; reject only references
+                    // beyond the inclusive last-index header.
+                    if (a < 0 || b < 0 || a >= level_point_count(&level) || b >= level_point_count(&level)) {
                         ptr += 28;
                         continue;
                     }
@@ -285,6 +284,9 @@ void Renderer::world(const Game &game, bool immersive) {
                         glBindTexture(GL_TEXTURE_2D, tex);
                     } else
                         glDisable(GL_TEXTURE_2D);
+                    lighting.material(id>=0 && id<MAX_WALL_TILES ? g_renderer.wall_palettes[id] : nullptr,2048,32,
+                                      PaletteLighting::Wall,w(ptr+26)+(level.point_brights?0:zoneBrightness),
+                                      level.point_brights,upper,type==13?32:64);
                     float period=std::clamp(mask,0,1023)+1.f;
                     float u1=w(ptr+4)/period,u2=w(ptr+6)/period;
                     float v1=id==11 ? 0 : (w(ptr+10)&(rows-1))/float(rows);
@@ -324,6 +326,10 @@ void Renderer::world(const Game &game, bool immersive) {
                         glBindTexture(GL_TEXTURE_2D, tex);
                     } else
                         glDisable(GL_TEXTURE_2D);
+                    int floorOffset=w(ptr+count*2+6);
+                    bool perPoint=(type==1 || type==2) && level.point_brights;
+                    lighting.material(g_renderer.floor_pal,15*512,256,PaletteLighting::Floor,
+                                      floorOffset+(perPoint?0:zoneBrightness),perPoint,upper);
                     // GLU tessellates concave authored polygons, instead of a triangle fan.
                     floor(level, ptr, count, y);
                     triangles += count - 2;
@@ -384,6 +390,7 @@ void Renderer::world(const Game &game, bool immersive) {
         XrBillboardInfo info{};if(!renderer_xr_explosion_info(&state,i,&info))continue;
         if(billboard(game,info,state.explosions[i].x/32.f,state.explosions[i].z/32.f))++explosionBillboardsRendered;
     }
+    lighting.stop();
     glDisable(GL_TEXTURE_2D);
     glPopMatrix();
 }
@@ -391,7 +398,7 @@ unsigned Renderer::vectorTexture(int map,bool holes){
     int key=map+(holes?65536:0);
     if(auto found=vectorTextures.find(key);found!=vectorTextures.end())return found->second;
     std::array<uint8_t,64*64*4> pixels{};
-    if(!poly_obj_xr_texture(uint16_t(map),holes,pixels.data()))return 0;
+    if(!poly_obj_xr_indices(uint16_t(map),holes,pixels.data()))return 0;
     unsigned tex;glGenTextures(1,&tex);glBindTexture(GL_TEXTURE_2D,tex);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER,0);glPixelStorei(GL_UNPACK_ALIGNMENT,1);
     glPixelStorei(GL_UNPACK_ROW_LENGTH,0);glPixelStorei(GL_UNPACK_SKIP_ROWS,0);glPixelStorei(GL_UNPACK_SKIP_PIXELS,0);
@@ -411,7 +418,7 @@ void Renderer::vectorObject(const GameObject *obj,float x,float z){
     int key=slot*MAX_POLY_FRAMES+frame;
     auto found=vectorMeshes.find(key);
     if(found==vectorMeshes.end()){
-        struct Face { unsigned texture;std::vector<std::array<float,5>> points; };
+        struct Face { unsigned texture;int divisor;bool gouraud;std::vector<std::array<float,5>> points; };
         std::vector<Face> faces;
         for(int part=0;part<mesh.num_parts;++part){
             size_t offset=mesh.part_poly_off[part];
@@ -420,7 +427,8 @@ void Renderer::vectorObject(const GameObject *obj,float x,float z){
                 if(edges<0)break;
                 size_t size=18+edges*4;
                 if(offset+size>mesh.size || edges<2 || edges>7)break;
-                Face face{vectorTexture(uint16_t(w(p+12+edges*4)),(w(p+2)&255)!=0),{}};
+                Face face{vectorTexture(uint16_t(w(p+12+edges*4)),(w(p+2)&255)!=0),
+                          std::max(1,std::abs(w(p+14+edges*4))),(w(p+16+edges*4)&255)!=0,{}};
                 bool valid=true;
                 for(int i=0;i<=edges;++i){
                     const uint8_t *v=p+4+i*4;int id=w(v);
@@ -437,6 +445,9 @@ void Renderer::vectorObject(const GameObject *obj,float x,float z){
         glEnable(GL_ALPHA_TEST);glAlphaFunc(GL_GREATER,.4f);
         for(const auto &face:faces){
             if(face.texture){glEnable(GL_TEXTURE_2D);glBindTexture(GL_TEXTURE_2D,face.texture);}else glDisable(GL_TEXTURE_2D);
+            for(int i=0;i<3;++i){auto p=face.points[i];
+                glMultiTexCoord4f(GL_TEXTURE2+i,p[0],p[1],p[2],face.divisor);}
+            glMultiTexCoord1f(GL_TEXTURE5,face.gouraud);
             glBegin(GL_TRIANGLE_FAN);
             for(auto v:face.points){glTexCoord2f(v[3],v[4]);glVertex3f(v[0],v[1],v[2]);}
             glEnd();
@@ -446,7 +457,8 @@ void Renderer::vectorObject(const GameObject *obj,float x,float z){
     }
     glPushMatrix();glTranslatef(x,-w(obj->raw+4)/64.f,z);
     glRotatef(w(obj->raw+30)*360.f/8192.f-180.f,0,1,0);
-    float light=std::clamp(1.f-w(obj->raw+2)/32.f,.2f,1.f);glColor3f(light,light,light);
+    size_t paletteBytes=0;auto palette=poly_obj_xr_palette(&paletteBytes);
+    lighting.material(palette,paletteBytes,256,PaletteLighting::Polygon,w(obj->raw+2));
     glCallList(found->second);glPopMatrix();++vectorObjectsRendered;
 }
 bool Renderer::billboard(const Game &game,const XrBillboardInfo &info,float x,float z){
@@ -463,10 +475,10 @@ bool Renderer::billboard(const Game &game,const XrBillboardInfo &info,float x,fl
         glBindTexture(GL_TEXTURE_2D, tex);
         glEnable(GL_ALPHA_TEST);
         glAlphaFunc(GL_GREATER, .4f);
-        float distance=std::hypot(p.xoff/65536.f-x*32,p.zoff/65536.f-z*32);
-        float light=std::clamp(1.f-(info.brightness+distance/128.f)/64.f,.2f,1.f);
-        glColor3f(light,light,light);
+        lighting.material(g_renderer.sprite_pal_data[info.vector],g_renderer.sprite_pal_size[info.vector],
+                          32,PaletteLighting::Sprite,info.brightness);
     } else {
+        lighting.stop();
         glDisable(GL_TEXTURE_2D);
         glColor3f(1, .25f, .12f);
     }
@@ -516,6 +528,7 @@ void end() { glEnd(); }
 void vertex(void *v) {
     auto p = static_cast<GLdouble *>(v);
     glTexCoord2d(p[0] / 2, p[2] / 2);
+    glMultiTexCoord1f(GL_TEXTURE1, p[3]);
     glVertex3dv(p);
 }
 } // namespace
@@ -526,15 +539,15 @@ void polygon(const LevelState &level, const uint8_t *indices, int count, float y
     gluTessCallback(tess, GLU_TESS_BEGIN, reinterpret_cast<void (*)()>(begin));
     gluTessCallback(tess, GLU_TESS_END, reinterpret_cast<void (*)()>(end));
     gluTessCallback(tess, GLU_TESS_VERTEX, reinterpret_cast<void (*)()>(vertex));
-    std::vector<std::array<GLdouble, 3>> points(count);
+    std::vector<std::array<GLdouble, 4>> points(count);
     for (int i = 0; i < count; ++i) {
         int id = w(indices + i * 2);
-        if (id < 0 || id >= w(level.data + 14)) {
+        if (id < 0 || id >= level_point_count(&level)) {
             gluDeleteTess(tess);
             return;
         }
         auto p = level.points + id * 4;
-        points[i] = {w(p) / 32., y, w(p + 2) / 32.};
+        points[i] = {w(p) / 32., y, w(p + 2) / 32., double(id)};
     }
     gluTessBeginPolygon(tess, nullptr);
     gluTessBeginContour(tess);
@@ -568,6 +581,7 @@ void Renderer::floor(const LevelState &level, const uint8_t *indices, int count,
 namespace tempest {
 void Renderer::invalidateLevel() {
     switchOffsets.clear();
+    lighting.invalidatePoints();
     for (auto [key, list] : polygons)
         glDeleteLists(list, 1);
     polygons.clear();

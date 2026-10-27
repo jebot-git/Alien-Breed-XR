@@ -22,6 +22,9 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
     (game/'fonts').symlink_to(BUILD/'fonts',target_is_directory=True)
     config=(ROOT/'ab3d.ini.template').read_text().replace('all_weapons=0','all_weapons=1').replace('flamethrower_weapon=0','flamethrower_weapon=1')
     (game/'ab3d.ini').write_text(config)
+    content_audit=[]
+    expected_pickups=[20,27,48,39,31,43,70,82,43,56,61,67,51,100,48,102]
+    expected_enemies=[26,40,38,48,50,37,70,48,38,52,90,73,44,56,80,24]
     for level in range(1,17):
         report=OUT/f'level-{level}.json'
         report.unlink(missing_ok=True)
@@ -32,10 +35,17 @@ with tempfile.TemporaryDirectory(prefix='ab3d-native-') as directory:
         print('level',level,'returncode',result.returncode,'triangles',data['gpu_triangles'],flush=True)
         assert result.returncode==0 and data['frames']==12 and data['gpu_triangles']>100 and data['level']==level,data
         assert not data['domed_managed']
+        content=data['original_content']
+        assert not content.get('error') and content['placement_changes']==0 and content['unrenderable']==0,content
+        assert content['pickups']==expected_pickups[level-1] and content['enemies']==expected_enemies[level-1],content
+        assert data['lighting_palette_uploads']>=10 and data['lighting_point_updates']>=1,data
+        content_audit.append({'level':level,**content})
         assert data['vector_objects_rendered']>0 and data['vector_meshes_uploaded']>0,data
         assert data['switch_mount_errors']==0,data
+        assert data['switch_panels_mounted']==content['switches'],data
         if level==1:
             assert data['switch_panels_mounted']==6 and data['switch_panels_rendered']>=6*12,data
+    (OUT/'content-audit.json').write_text(json.dumps(content_audit,indent=2))
     eyes=OUT/'eyes.txt';eyes.unlink(missing_ok=True)
     env.update(LD_PRELOAD=str(BUILD/'libab3d-mock-openxr.so'),ABXR_TEST_EYES=str(eyes))
     env['ABXR_TEST_PRESENTATION']='1'

@@ -92,6 +92,8 @@ void poly_obj_set_use_object_frame(int enabled);
 #ifdef AB3D_XR
 /* Decode an original polygon material once for the GPU texture cache. */
 int poly_obj_xr_texture(uint16_t map, int holes, uint8_t *rgba);
+int poly_obj_xr_indices(uint16_t map, int holes, uint8_t *rgba);
+const uint8_t *poly_obj_xr_palette(size_t *bytes);
 #endif
 
 /*

@@ -16005,7 +16005,7 @@ void renderer_draw_display(GameState *state)
 }
 
 #ifdef AB3D_XR
-int renderer_xr_decode_sprite(int vect, int frame, int width, int height, uint8_t *rgba) {
+static int renderer_xr_decode_sprite_material(int vect, int frame, int width, int height, uint8_t *rgba, int indexed) {
     if (vect < 0 || vect >= MAX_SPRITE_TYPES || width < 1 || width > 256 || height < 1 || height > 256) return 0;
     const uint8_t *wad=g_renderer.sprite_wad[vect], *ptr=g_renderer.sprite_ptr[vect], *pal=g_renderer.sprite_pal_data[vect];
     if (!wad || !ptr || !pal) return 0;
@@ -16025,7 +16025,7 @@ int renderer_xr_decode_sprite(int vect, int frame, int width, int height, uint8_
             if(!texel)continue;
             size_t po=texel*2;if(po+2>g_renderer.sprite_pal_size[vect])continue;
             unsigned color=(uint16_t)rd16(pal+po);size_t dest=((size_t)y*width+x)*4;
-            rgba[dest]=((color>>8)&15)*17;rgba[dest+1]=((color>>4)&15)*17;rgba[dest+2]=(color&15)*17;rgba[dest+3]=255;
+            rgba[dest]=indexed?texel:((color>>8)&15)*17;rgba[dest+1]=indexed?0:((color>>4)&15)*17;rgba[dest+2]=indexed?0:(color&15)*17;rgba[dest+3]=255;
         }
     }
     return 1;
@@ -16033,6 +16033,12 @@ int renderer_xr_decode_sprite(int vect, int frame, int width, int height, uint8_
 #endif
 
 #ifdef AB3D_XR
+int renderer_xr_decode_sprite(int vect,int frame,int width,int height,uint8_t *rgba) {
+    return renderer_xr_decode_sprite_material(vect,frame,width,height,rgba,0);
+}
+int renderer_xr_decode_sprite_indices(int vect,int frame,int width,int height,uint8_t *rgba) {
+    return renderer_xr_decode_sprite_material(vect,frame,width,height,rgba,1);
+}
 int renderer_xr_billboard_info(const GameObject *object,XrBillboardInfo *out){
     if(!object||!out)return 0;
     const uint8_t *obj=object->raw;

@@ -538,7 +538,7 @@ int level_parse(LevelState *level)
     level->zone_brightness_le = false;
 
     /* ---- Level data header ---- */
-    /* Byte 14: Number of points (word) */
+    /* Byte 14: Highest valid point index (word); points 0..num_points. */
     int16_t num_points = read_word(ld + 14);
 
     /* Byte 16: Number of zones (word) */
@@ -640,7 +640,7 @@ int level_parse(LevelState *level)
     if (num_points > 0) {
         int point_anim_lower = 0;
         int point_anim_upper = 0;
-        for (int p = 0; p < num_points; p++) {
+        for (int p = 0; p <= num_points; p++) {
             int16_t lo = read_word(level->point_brights + (size_t)p * 4u + 0u);
             int16_t hi = read_word(level->point_brights + (size_t)p * 4u + 2u);
             uint8_t lo_anim = (uint8_t)(((uint16_t)lo >> 8) & 0xFFu);
@@ -1468,6 +1468,13 @@ int16_t level_get_zone_brightness(const LevelState *level, int16_t zone_id, int 
     return word;
 }
 
+int level_point_count(const LevelState *level)
+{
+    if (!level || !level->data) return 0;
+    int last = read_word(level->data + 14);
+    return last < 0 ? 0 : last + 1;
+}
+
 int16_t level_get_point_brightness(const LevelState *level, int16_t point_id, int use_upper)
 {
     if (!level || !level->data || !level->point_brights)
@@ -1476,7 +1483,7 @@ int16_t level_get_point_brightness(const LevelState *level, int16_t point_id, in
         return 0;
 
     {
-        int num_points = (int)read_word(level->data + 14);
+        int num_points = level_point_count(level);
         if (num_points <= 0 || point_id >= num_points)
             return 0;
     }

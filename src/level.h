@@ -92,6 +92,8 @@ int level_set_zone_water(LevelState *level, int16_t zone_id, int32_t water_y);
  * Usually equals num_zones, but real Amiga levels can have an extra slot.
  */
 int level_zone_slot_count(const LevelState *level);
+/* Header word +14 is the highest valid index, rather than the count. */
+int level_point_count(const LevelState *level);
 
 /*
  * Return 1 when zone_id has a usable upper section (valid upper height range

@@ -1,5 +1,6 @@
 #include "native.h"
 #include "combat.h"
+#include "content_audit.hpp"
 #include "aim.hpp"
 #include "shot_origin.hpp"
 #include "domed.hpp"
@@ -33,6 +34,7 @@ int failedStatus = 0;
 int level = 0, frameLimit = 0, frames = 0, suspends = 0, entries = 0, shots = 0;
 volatile std::sig_atomic_t stopRequested = 0;
 std::string capture, report;
+nlohmann::json originalContent;
 PlayerState shotBackup;
 int16_t aimBackup = 0;
 bool lookBackup = false;
@@ -502,6 +504,7 @@ extern "C" int abxr_weapon_steps(const void *data, const void *player) {
 extern "C" void abxr_level_loaded(void *data) {
     auto &state = *static_cast<GameState *>(data);
     renderer.invalidateLevel();
+    if(!report.empty())originalContent=auditOriginalContent(state);
     pendingWeapons = 0;
     pendingUse = false;
     pendingFireClick=false;
@@ -681,6 +684,9 @@ extern "C" void abxr_present(void *data) {
         if (!report.empty())
             std::ofstream(report)
                 << nlohmann::json{{"frames", frames},
+                                  {"original_content",originalContent},
+                                  {"lighting_palette_uploads",renderer.lighting.paletteUploads},
+                                  {"lighting_point_updates",renderer.lighting.pointUpdates},
                                   {"title_frames", titleFrames}, {"story_frames", storyFrames}, {"ending_frames", endingFrames},
                                   {"presentation", int(overlay.presentation)},
                                   {"xr_entries", entries},

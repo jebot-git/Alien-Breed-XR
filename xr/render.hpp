@@ -1,6 +1,7 @@
 #pragma once
 #include "game.hpp"
 #include "weapon.hpp"
+#include "lighting.hpp"
 #include <map>
 #include <array>
 #include <string>
@@ -29,6 +30,7 @@ class Renderer {
   public:
     void vectorObject(const GameObject *,float x,float z);
     WeaponRenderer weapons;
+    PaletteLighting lighting;
     unsigned long triangles = 0;
     unsigned long shotBillboardsRendered=0,explosionBillboardsRendered=0;
     unsigned long vectorObjectsRendered=0,vectorMeshesUploaded=0;

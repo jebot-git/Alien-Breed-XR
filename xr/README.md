@@ -196,7 +196,7 @@ Production rendering has no framebuffer readback; capture is explicit.
 
 This is a working source-port prototype, **not a completed VR conversion**.
 Curved-wall records, complete sprite frame/type fallbacks,
-water/bump effects, exact original lighting/material accuracy, sky and the
+water/bump effects, exact original raster/material coverage, sky and the
 original options menu are not fully ported. Unknown/unavailable sprite
 frames have coloured markers. Floor texture scale and wall UV fidelity need
 further comparison with the original renderer. The original collision/AI still
@@ -290,3 +290,19 @@ aim updates and include simulation VBlanks, elapsed time and rendered effects.
 
 See GAMEPLAY_REFERENCE.txt for the original gameplay recordings inspected,
 coordinate/prop/collision/aiming corrections, checks and remaining parity work.
+
+
+## Original lighting and content fidelity
+
+World materials retain their original indexed palettes in VRAM. GPU palette
+lookup now applies point-light gradients/animation, wall and floor offsets,
+distance bands, emissive sprite lighting and polygon face/Gouraud shading.
+The final valid point in original level data is included, restoring omitted
+switch panels in levels 9, 11 and 14.
+
+All 16 levels are audited against their original compressed files before
+simulation: 888 pickups and 814 enemies retain original positions and layers,
+and all active objects have drawable graphics. `--report` includes per-object
+`original_content` diagnostics; the native test writes `content-audit.json`.
+See ORIGINAL_LIGHTING_AND_CONTENT.txt for source references, population and
+mechanism counts, verification scope, and remaining visual limitations.

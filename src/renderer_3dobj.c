@@ -770,6 +770,21 @@ int poly_obj_xr_texture(uint16_t map, int holes, uint8_t *rgba)
     }
     return 1;
 }
+int poly_obj_xr_indices(uint16_t map,int holes,uint8_t *rgba)
+{
+    if(!rgba || !poly_textures_ready())return 0;
+    for(int y=0;y<64;++y)for(int x=0;x<64;++x){
+        uint8_t index=sample_poly_texel_index(map,x*65536,y*65536);
+        uint8_t *p=rgba+(y*64+x)*4;p[0]=index;p[1]=p[2]=0;p[3]=(holes && !index)?0:255;
+    }
+    return 1;
+}
+const uint8_t *poly_obj_xr_palette(size_t *bytes)
+{
+    if(bytes)*bytes=g_poly_tex_pal_size;
+    return g_poly_tex_pal;
+}
+
 #endif
 
 static inline int poly_pixel_behind_wall(int x, int y, int32_t z_view)

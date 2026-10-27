@@ -1,0 +1,92 @@
+Alien Breed XR: original lighting and content audit
+==================================================
+
+Source basis
+------------
+The repository's amiga/includes/Macros.i SCALE, amiga/AB3DI.s floorbright and
+currentPointBrights, and amiga/ObjDraw3.ChipRam.s objscalecols/PolygonObj
+provide the lighting rules. Their C translations are in src/renderer.c,
+src/renderer_3dobj.c and src/level.c. Original assets supply the complete
+wall, floor, sprite and polygon brightness palettes.
+
+The native renderer previously decoded only one palette bank, multiplied
+that RGB by an approximate linear factor, ignored point lights and wall/
+floor brightness offsets, and baked floors at one fixed shade.
+
+GPU implementation
+------------------
+Indexed materials and original palette banks now remain in VRAM. GLSL
+selects the original bank from distance, per-point brightness and authored
+material offsets. This retains colored/emissive palette entries rather
+than darkening every RGB channel equally. Point brightness uses the same
+signed-byte/animation blend decoder as the original engine. A small point
+texture updates when the animation changes, shared by both eyes and the
+mirror. Cached floor geometry carries point indices, so animations are
+not baked into its display list. Walls use endpoint lighting; normal
+floors/ceilings use interpolated point lighting. Other supported planes
+use their room brightness and authored offset.
+
+Polygon objects retain the original material palette, brightness divisor,
+projected-face-area shading and per-vertex Gouraud option. The reference
+projection makes shading independent of XR swapchain resolution/FOV.
+Sprites use objscalecols; negative-brightness projectiles/explosions retain
+their emissive appearance. Production rendering adds no framebuffer readback.
+
+Concrete content correction
+---------------------------
+The original header word at level data +14 is the highest valid point
+index, not a count. The point-brightness block explicitly follows
+(header + 1) points. Treating it as a count omitted the final switch
+panel in levels 9, 11 and 14. Inclusive point bounds and the corresponding
+point-light lookup now restore all 49 authored active switch panels.
+The last endpoints are respectively point 272, 297 and 584.
+
+Placement verification
+----------------------
+With --report, each freshly loaded level is compared against its original
+compressed twolev.bin before simulation advances. The audit checks CID,
+X/Y/Z, owned zone and upper/lower flag. Every active object's original
+polygon asset or decoded nontransparent sprite is checked. Reserved inactive
+slots are recorded separately from the active population. The native test
+runs all 16 levels with isolated settings and asserts original pickup/enemy
+counts, unchanged placements, drawable assets, and a mounted panel for every
+active switch. artifacts/native-test/content-audit.json records each object.
+
+Level  Pickups  Enemies  Decorations  Doors  Lifts  Switches
+-----  -------  -------  -----------  -----  -----  --------
+    1       20       26           12     13      5         6
+    2       27       40            8      5      0         6
+    3       48       38            1      2      1         2
+    4       39       48           15      8      1         0
+    5       31       50           12      3      5         0
+    6       43       37           12      4      2         5
+    7       70       70           19      7      1         0
+    8       82       48            9     11     11         5
+    9       43       38           20      6      9         8
+   10       56       52           24      9      2         1
+   11       61       90            7     20      4         8
+   12       67       73            7      3      5         0
+   13       51       44            5      4      1         0
+   14      100       56            8     16      9         7
+   15       48       80           13     11      2         1
+   16      102       24            3      1      2         0
+
+Totals: 888 pickups, 814 enemies, 175 decorations, 123 doors, 60 lifts,
+49 active switch entries. No source placement changed and no active object
+was missing its drawable graphic in this audit. No items, enemies or new
+secrets were invented or moved. Existing secret routes retain the original
+door/lift/switch/key condition data and gameplay code.
+
+Verification and limits
+-----------------------
+original-lighting-gpu compares actual GPU output against exact original
+wall/floor/sprite/polygon palette colors, distance bands, face/Gouraud modes,
+and changing lower/upper point animations. native-gpu-stereo covers all
+16 level loads and isolated OpenXR presentation/input/combat cases.
+
+This is a source/data audit and GPU regression check, not a completed
+playthrough of every secret route. Original raster coverage and near-plane
+clipping differ from spatial GPU geometry; polygon face shading is evaluated
+in the reference projection rather than the old quantized screen pipeline.
+Water/bump effects, curved-wall records and sky remain separate known
+renderer gaps. Physical headset contrast/lighting still needs user testing.

@@ -1,7 +1,7 @@
 {
   "project": "Alien-Breed-XR",
   "package": "alien-breed-xr",
-  "version": "1.0.1.20261028",
+  "version": "1.0.1.20261029",
   "arch_dependencies": [
     "sdl2",
     "openxr",

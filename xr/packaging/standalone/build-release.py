@@ -45,7 +45,15 @@ if a.platform=='windows':
  commands[0]+=['-DCMAKE_TOOLCHAIN_FILE=/toolchain/mingw-toolchain.cmake','-DCMAKE_INSTALL_PREFIX=/standalone','-DCMAKE_INSTALL_DATADIR=share','-DCMAKE_INSTALL_BINDIR=bin','-DCMAKE_INSTALL_LIBEXECDIR=libexec']
  commands[2]=['cmake','--install','/output/build','--prefix','/standalone']
 for i,c in enumerate(commands):script+=(('DESTDIR=/output/stage-root ' if a.platform=='windows' else 'DESTDIR=/output/stage ') if i==2 else '')+shlex.join(c)+'\n'
-if a.platform=='windows':script+='mv /output/stage-root/standalone /output/stage\n'
+if a.platform=='windows':
+ script+='mv /output/stage-root/standalone /output/stage\n'
+ script+='python3 /toolchain/test-windows-runtime.py\n'
+ script+='python3 /toolchain/build-windows-loader.py /output/windows-loader --jobs '+str(a.jobs)+'\n'
+ script+='python3 /toolchain/windows-runtime.py /output/stage/bin --sdk /sdk/mingw64/bin --loader /output/windows-loader/libopenxr_loader.dll --report /output/stage/share/doc/'+meta['package']+'/WINDOWS-RUNTIME.json'
+ if meta['package']=='tempest-xr':script+=' --extra libopenmpt-0.dll'
+ script+='\n'
+ script+='mkdir -p /output/stage/share/licenses/windows-toolchain\ncp /output/windows-loader/LICENSE.* /output/stage/share/licenses/windows-toolchain/\ncp /usr/share/doc/gcc-mingw-w64-base/copyright /output/stage/share/licenses/windows-toolchain/GCC-runtime-copyright\n'
+
 if a.platform in ['ubuntu','fedora']:
  generator='DEB' if a.platform=='ubuntu' else 'RPM'
  script+='cd /output/build\ncpack -G '+generator+' -B /output/packages\n'
@@ -61,21 +69,7 @@ with (work/'build.log').open('w') as log:
  subprocess.run([*args,image,'bash','-c',script],stdout=log,stderr=subprocess.STDOUT,check=True)
 version=meta['version'];output=a.output.resolve()
 if a.platform=='windows':
- # Copy only actual non-system PE dependencies, recursively, plus optional music.
- import re
- sdk=a.windows_sdk.resolve()/'mingw64';dlls={x.name.lower():x for x in (sdk/'bin').glob('*.dll')}
- bins=work/'stage/bin'
- queue=list(bins.glob('*.exe'))
- if meta['package']=='tempest-xr':queue.append(dlls['libopenmpt-0.dll'])
- seen=set()
- while queue:
-  item=queue.pop()
-  if item.name.lower() in seen:continue
-  seen.add(item.name.lower())
-  if item.parent!=bins:shutil.copy2(item,bins/item.name)
-  result=subprocess.check_output(['podman','run','--rm','--userns=keep-id','--security-opt','label=disable','-v',str(item.parent)+':/dlls:ro',image,'x86_64-w64-mingw32-objdump','-p','/dlls/'+item.name],text=True)
-  for dep in re.findall(r'DLL Name:\s*(\S+)',result):
-   if dep.lower() in dlls:queue.append(dlls[dep.lower()])
+ sdk=a.windows_sdk.resolve()/'mingw64'
  for mode,flag in [('XR','--xr'),('desktop','--desktop')]:
   (work/'stage'/('Play in '+mode+'.cmd')).write_bytes(('@echo off\r\nstart "" "%~dp0bin\\'+meta['package']+'.exe" '+flag+' %*\r\n').encode())
  for unused in ['share/applications','share/icons']:

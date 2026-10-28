@@ -54,3 +54,22 @@ CTest adds `standalone-generic-openxr`. It checks stereo frames through EGL and
 GLX with vendor extensions absent and no DomeD service. Existing gameplay,
 asset and renderer suites continue to apply. Tests use private displays, data
 and runtime fixtures and do not connect to the user's headset/session.
+
+## Windows C++ runtime validation
+
+The Windows games and the pinned Khronos OpenXR loader are built with the same
+MinGW cross compiler. The ZIP takes libstdc++, libgcc and winpthreads from that
+compiler, ahead of SDK copies. Remaining SDK libraries are bundled recursively.
+Before creating a ZIP, `windows-runtime.py` verifies x86_64 machine type, every
+named/ordinal import (including delayed imports), and local export forwarders.
+Missing DLLs and missing exported symbols stop packaging. Only known Windows OS
+DLLs/API sets are allowed outside the bundle. The generated `WINDOWS-RUNTIME.json`
+records checked imports, compiler identity and DLL hashes.
+
+This avoids mixing the Ubuntu GCC 13 executables with MSYS2 GCC 16 runtime DLLs,
+which caused `_ZSt21ios_base_library_initv` launch errors. Replacing just
+libstdc++ is insufficient: the MSYS2 OpenXR loader also requires newer C++ ABI
+symbols, so the loader is rebuilt from the checksum-pinned upstream source.
+The runtime validator requires Python `pefile` (installed in the Windows builder
+image). Run `python3 windows-runtime.py /path/to/extracted/bin` to audit an
+existing ZIP after extraction; do not rely on a Wine exit code alone.

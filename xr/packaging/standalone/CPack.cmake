@@ -1,7 +1,7 @@
 if(DE_XR_STANDALONE)
  include(GNUInstallDirs)
  set(CPACK_PACKAGE_NAME "alien-breed-xr")
- set(DE_XR_RELEASE_VERSION "1.0.1.20261028" CACHE STRING "Standalone release version")
+ set(DE_XR_RELEASE_VERSION "1.0.1.20261029" CACHE STRING "Standalone release version")
  set(CPACK_PACKAGE_VERSION "${DE_XR_RELEASE_VERSION}")
  set(CPACK_PACKAGE_RELEASE "1")
  set(CPACK_PACKAGE_VENDOR "de-xr contributors")

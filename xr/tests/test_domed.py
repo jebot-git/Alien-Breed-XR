@@ -49,13 +49,13 @@ try:
     wait(lambda:request('/api/xr-control')['input_realm']=='xr')
     binary=ROOT/'build-xr/alien-breed-xr'
     background=start([binary,'--desktop','--frames','100000'],{**env,'WAYLAND_DISPLAY':desktop},'background')
-    old=wait(lambda:next((w for w in scene()['windows'] if w.get('client_pid')==background.pid and w.get('title')=='Alien Breed XR'),None));oldid=old['id']
+    old=wait(lambda:next((w for w in scene()['windows'] if w.get('client_pid')==background.pid and w.get('title')=='Alien Breed 3D XR'),None));oldid=old['id']
     request('/api/action',{'op':'window_visibility','id':oldid,'desktop':True,'xr':True})
     request('/api/action',{'op':'focus','id':oldid})
     request('/api/action',{'op':'xr_presentation','top':False,'bottom':True,'desktop':True})
     before=scene();report=OUT/'game.json';report.unlink(missing_ok=True)
     game=start([binary,'--xr','--frames','100000','--report',report],{**env,'WAYLAND_DISPLAY':xr,'LD_PRELOAD':str(ROOT/'build-xr/libab3d-mock-openxr.so')},'game')
-    gamewin=wait(lambda:next((w for w in scene()['windows'] if w.get('client_pid')==game.pid and w.get('title')=='Alien Breed XR'),None));gid=gamewin['id']
+    gamewin=wait(lambda:next((w for w in scene()['windows'] if w.get('client_pid')==game.pid and w.get('title')=='Alien Breed 3D XR'),None));gid=gamewin['id']
     def active():
         snapshot={'native':native(),'scene':scene(),'expected':gid}
         (OUT/'state.json').write_text(json.dumps(snapshot,indent=2))

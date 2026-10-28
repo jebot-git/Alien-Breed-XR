@@ -103,7 +103,7 @@ void XR::initialize(SDL_Window *window) {
     if (x.touchPro)
         extensions.push_back("XR_FB_touch_controller_pro");
     XrInstanceCreateInfo ci{XR_TYPE_INSTANCE_CREATE_INFO};
-    std::strcpy(ci.applicationInfo.applicationName, "Alien Breed XR");
+    std::strcpy(ci.applicationInfo.applicationName, "Alien Breed 3D XR");
     ci.applicationInfo.apiVersion = XR_MAKE_VERSION(1, 0, 0);
     ci.enabledExtensionCount = extensions.size();
     ci.enabledExtensionNames = extensions.data();

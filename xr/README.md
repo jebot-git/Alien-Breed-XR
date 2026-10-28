@@ -1,4 +1,4 @@
-# Alien Breed XR — native port attempt
+# Alien Breed 3D XR — native port attempt
 
 Standalone Ubuntu, Fedora, Arch and Windows packaging: [release instructions](packaging/standalone/README.md).
 

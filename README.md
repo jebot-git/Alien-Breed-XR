@@ -1,4 +1,4 @@
-# Alien Breed XR / DomeD native port attempt
+# Alien Breed 3D XR / DomeD native port attempt
 
 This branch adds native OpenGL world rendering, OpenXR stereo views, tracked
 controller actions and Tempest XR-compatible DomeD fullscreen input/background

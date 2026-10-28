@@ -219,7 +219,7 @@ void captureFrame(int w, int h) {
 }
 } // namespace
 static int startup(int argc, char **argv) {
-    SDL_SetHint(SDL_HINT_APP_NAME,"Alien Breed XR");
+    SDL_SetHint(SDL_HINT_APP_NAME,"Alien Breed 3D XR");
     SDL_SetHint("SDL_APP_ID","alien-breed-xr");
     SDL_SetHint("SDL_VIDEO_WAYLAND_WMCLASS","alien-breed-xr");
     SDL_SetHint("SDL_VIDEO_X11_WMCLASS","alien-breed-xr");
@@ -283,7 +283,7 @@ static int startup(int argc, char **argv) {
             report = value();
         else if (arg == "--help") {
             std::cout
-                << "Alien Breed XR [--xr|--desktop] [--level 1..16] [--frames N] [--capture PPM] [--report "
+                << "Alien Breed 3D XR [--xr|--desktop] [--level 1..16] [--frames N] [--capture PPM] [--report "
                    "JSON] [--presentation]\nBounded --frames runs skip title/story unless --presentation is set.\nF8: XR/desktop | Escape: pause | Enter: resume | R: recenter | Ctrl+Q: quit\nXR: "
                    "left stick move, right stick turn, right trigger fire, A/X use, left menu pause\n";
             return 1;
@@ -303,7 +303,7 @@ extern "C" int abxr_startup(int argc, char **argv) {
     try {
         return startup(argc, argv);
     } catch (const std::exception &error) {
-        std::cerr << "Alien Breed XR: " << error.what() << '\n';
+        std::cerr << "Alien Breed 3D XR: " << error.what() << '\n';
         return -1;
     }
 }
@@ -670,7 +670,7 @@ extern "C" void abxr_present(void *data) {
             window = SDL_GL_GetCurrentWindow();
             if (!window)
                 throw std::runtime_error("No native OpenGL window");
-            SDL_SetWindowTitle(window, "Alien Breed XR");
+            SDL_SetWindowTitle(window, "Alien Breed 3D XR");
             setWindowIcon(window);
             renderer.weapons.loadAll();
             initialized = true;

@@ -1,4 +1,4 @@
-# Alien Breed XR icon
+# Alien Breed 3D XR icon
 
 Authored with the built-in imagegen tool for this port, 2026-10-27. This is new
 launcher artwork inspired by the game's industrial sci-fi presentation, rather

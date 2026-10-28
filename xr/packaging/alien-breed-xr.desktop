@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Alien Breed XR
+Name=Alien Breed 3D XR
 Comment=Alien Breed 3D with native OpenXR stereo and motion controls
 Exec=alien-breed-xr
 TryExec=alien-breed-xr

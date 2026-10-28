@@ -1,5 +1,5 @@
 #include "lighting.hpp"
-#include <SDL_opengl.h>
+#include "gl_platform.hpp"
 #include <algorithm>
 #include <stdexcept>
 #include <vector>

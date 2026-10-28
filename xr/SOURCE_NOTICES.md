@@ -20,3 +20,7 @@
   port artwork authored with the built-in imagegen tool. Its transparent master,
   export instructions and full prompts are kept alongside the PNGs. It is not
   extracted original game artwork and does not change existing game licenses.
+
+Standalone Windows releases bundle generic SDL2, OpenXR loader, GLEW and compiler
+runtime DLLs from MSYS2. Their license notices are included under
+`share/licenses/windows-libraries`. They contain no WiVRn-Pro or DomeD binaries.

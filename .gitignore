@@ -12,3 +12,7 @@ dist-*/
 
 build-xr/
 artifacts/
+
+/build-standalone/
+
+/dist/

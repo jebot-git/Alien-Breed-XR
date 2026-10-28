@@ -43,16 +43,13 @@ void state(XrEventDataBuffer *out, XrSessionState state) {
 } // namespace
 extern "C" {
 XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateInstanceExtensionProperties(const char *, uint32_t capacity,
-                                                                      uint32_t *count,
-                                                                      XrExtensionProperties *out) {
+    uint32_t *count, XrExtensionProperties *out) {
     const char *names[] = {XR_KHR_OPENGL_ENABLE_EXTENSION_NAME, XR_MNDX_EGL_ENABLE_EXTENSION_NAME,
-                           "XR_FB_touch_controller_pro"};
-    *count = 3;
-    if (!capacity)
-        return XR_SUCCESS;
-    if (capacity < 3)
-        return XR_ERROR_SIZE_INSUFFICIENT;
-    for (unsigned i = 0; i < 3; ++i) {
+                          "XR_FB_touch_controller_pro"};
+    *count = std::getenv("DE_XR_TEST_GLX") ? 1 : std::getenv("DE_XR_TEST_GENERIC") ? 2 : 3;
+    if (!capacity) return XR_SUCCESS;
+    if (capacity < *count) return XR_ERROR_SIZE_INSUFFICIENT;
+    for (uint32_t i = 0; i < *count; ++i) {
         out[i] = {XR_TYPE_EXTENSION_PROPERTIES};
         std::strcpy(out[i].extensionName, names[i]);
         out[i].extensionVersion = 1;
@@ -90,7 +87,8 @@ XRAPI_ATTR XrResult XRAPI_CALL xrGetSystem(XrInstance, const XrSystemGetInfo *, 
 
 XRAPI_ATTR XrResult XRAPI_CALL xrCreateSession(XrInstance, const XrSessionCreateInfo *info, XrSession *out) {
     auto binding = static_cast<const XrGraphicsBindingEGLMNDX *>(info->next);
-    if (!binding || binding->type != XR_TYPE_GRAPHICS_BINDING_EGL_MNDX)
+    if (!binding || (binding->type != XR_TYPE_GRAPHICS_BINDING_EGL_MNDX &&
+        !(std::getenv("DE_XR_TEST_GLX") && binding->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_XLIB_KHR)))
         return XR_ERROR_GRAPHICS_DEVICE_INVALID;
     *out = reinterpret_cast<XrSession>(2);
     return XR_SUCCESS;

@@ -1,5 +1,7 @@
 # Alien Breed XR — native port attempt
 
+Standalone Ubuntu, Fedora, Arch and Windows packaging: [release instructions](packaging/standalone/README.md).
+
 This branch extends retro-foundry's native C translation of **Alien Breed 3D I**,
 including its original Amiga source reference and data. It runs the translated
 gameplay directly; it does not launch an emulator or render a flat game screen

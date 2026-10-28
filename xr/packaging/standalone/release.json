@@ -1,0 +1,15 @@
+{
+  "project": "Alien-Breed-XR",
+  "package": "alien-breed-xr",
+  "version": "1.0.1.20261028",
+  "arch_dependencies": [
+    "sdl2",
+    "openxr",
+    "libglvnd",
+    "libx11",
+    "glu"
+  ],
+  "cmake_options": [
+    "-DAB3D_XR=ON"
+  ]
+}

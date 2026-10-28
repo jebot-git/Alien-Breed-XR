@@ -2,7 +2,7 @@
  * Alien Breed 3D I - PC Port
  * renderer_alloc.h - Cross-platform aligned heap allocation for render buffers
  *
- * MSVC: _aligned_malloc / _aligned_free
+ * Windows (MSVC/MinGW): _aligned_malloc / _aligned_free
  * C11 POSIX: aligned_alloc / free
  */
 
@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(_MSC_VER)
+#if defined(_WIN32)
 #include <malloc.h>
 
 static inline void *ab3d_aligned_alloc(size_t align, size_t size)

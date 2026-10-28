@@ -1,5 +1,5 @@
 #include "render.hpp"
-#include <SDL_opengl.h>
+#include "gl_platform.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>

@@ -2,7 +2,7 @@
 #include "game.hpp"
 #include "stb_image.h"
 #include <SDL.h>
-#include <SDL_opengl.h>
+#include "gl_platform.hpp"
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cmath>

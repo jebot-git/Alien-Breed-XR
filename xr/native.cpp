@@ -8,9 +8,10 @@
 #include "locomotion.hpp"
 #include "render.hpp"
 #include "xr.hpp"
+#include "openxr_video.hpp"
 #include "stb_image.h"
 #include <SDL.h>
-#include <SDL_opengl.h>
+#include "gl_platform.hpp"
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -225,17 +226,38 @@ static int startup(int argc, char **argv) {
     std::signal(SIGTERM, [](int) { stopRequested = 1; });
     std::signal(SIGINT, [](int) { stopRequested = 1; });
     std::string mode = "auto";
+#ifdef _WIN32
+    char *pref = SDL_GetPrefPath("de-xr", "alien-breed-xr");
+    if (!pref) throw std::runtime_error("Cannot locate user data directory");
+    auto user = std::filesystem::u8path(pref);
+    SDL_free(pref);
+    if (!getenv("ABXR_CONFIG")) {
+        auto config = user / "ab3d.ini";
+        if (!std::filesystem::exists(config)) {
+            char *base = SDL_GetBasePath();
+            if (!base) throw std::runtime_error("Cannot locate game data");
+            auto source = std::filesystem::u8path(base) / "ab3d.ini.template";
+            SDL_free(base);
+            std::filesystem::copy_file(source, config);
+        }
+        SDL_setenv("ABXR_CONFIG", config.u8string().c_str(), 1);
+    }
+#endif
     if (!getenv("ABXR_SAVE_DIR")) {
+#ifdef _WIN32
+        auto directory = user / "saves";
+#else
         const char *state = getenv("XDG_STATE_HOME"), *home = getenv("HOME");
         if (!state && !home)
             throw std::runtime_error("Cannot locate user save directory");
         auto directory =
             (state ? std::filesystem::path(state) : std::filesystem::path(home) / ".local/state") /
             "alien-breed-xr";
+#endif
         std::filesystem::create_directories(directory);
-        setenv("ABXR_SAVE_DIR", directory.c_str(), 1);
+        SDL_setenv("ABXR_SAVE_DIR", directory.u8string().c_str(), 1);
     } else
-        std::filesystem::create_directories(getenv("ABXR_SAVE_DIR"));
+        std::filesystem::create_directories(std::filesystem::u8path(getenv("ABXR_SAVE_DIR")));
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         auto value = [&]() {
@@ -269,6 +291,8 @@ static int startup(int argc, char **argv) {
     }
     launch = domeLaunch(mode);
     wantsXR = mode == "xr" || (mode == "auto" && launch.xr);
+    xr_platform::selectVideo(wantsXR);
+    SDL_SetMainReady();
     if (!getenv("SDL_VIDEODRIVER") && getenv("WAYLAND_DISPLAY"))
         SDL_setenv("SDL_VIDEODRIVER", "wayland", 0);
     SDL_setenv("SDL_RENDER_DRIVER", "opengl", 1);
@@ -638,6 +662,11 @@ extern "C" void abxr_present(void *data) {
     auto &state = *static_cast<GameState *>(data);
     try {
         if (!initialized) {
+#ifdef _WIN32
+            glewExperimental = GL_TRUE;
+            if (glewInit() != GLEW_OK) throw std::runtime_error("Cannot load OpenGL functions");
+            glGetError();
+#endif
             window = SDL_GL_GetCurrentWindow();
             if (!window)
                 throw std::runtime_error("No native OpenGL window");

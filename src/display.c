@@ -3015,7 +3015,12 @@ void display_init(GameState *state)
 #endif
 #ifndef __EMSCRIPTEN__
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+#ifdef AB3D_XR
+    /* Native OpenXR needs a modern context with an identifiable GLX FBConfig. */
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
 #endif
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 

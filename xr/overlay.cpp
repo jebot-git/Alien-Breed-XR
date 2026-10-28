@@ -1,7 +1,7 @@
 #include "render.hpp"
 #include "stb_image.h"
 #include <SDL.h>
-#include <SDL_opengl.h>
+#include "gl_platform.hpp"
 #include <algorithm>
 extern "C" {
 #include "display.h"
